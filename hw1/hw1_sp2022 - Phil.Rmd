@@ -1,0 +1,708 @@
+---
+title: " Modern Data Mining, HW 1"
+author:
+- Group Member 1
+- Group Member 2
+- Group Member 3
+date: 'Due: 11:59PM,  Jan. 30th, 2021'
+output:
+  pdf_document:
+    number_sections: yes
+    toc: yes
+    toc_depth: '4'
+  html_document:
+    code_folding: show
+    highlight: haddock
+    number_sections: yes
+    theme: lumen
+    toc: yes
+    toc_depth: 4
+    toc_float: yes
+  word_document:
+    toc: yes
+    toc_depth: '4'
+urlcolor: blue
+---
+
+
+```{r setup, include=FALSE}
+#knitr::opts_chunk$reset(echo = FALSE, results = "hide", fig.width=8, fig.height=4)
+options(scipen = 0, digits = 3)  # controls base R output
+# check if you have ISLR package, if not, install it
+if(!require('pacman')) {install.packages('pacman')}
+pacman::p_load(ISLR, readxl, tidyverse, magrittr, dplyr, ggplot2)
+```
+
+
+\pagebreak
+
+# Overview
+
+This is a fast-paced course that covers a lot of material. There will be a large amount of references. You may need to do your own research to fill in the gaps in between lectures and homework/projects. It is impossible to learn data science without getting your hands dirty. Please budget your time evenly. Last-minute work ethic will not work for this course. 
+
+Homework in this course is different from your usual homework assignment as a typical student. Most of the time, they are built over real case studies.  While you will be applying methods covered in lectures, you will also find that extra teaching materials appear here.  The focus will be always on the goals of the study, the usefulness of the data gathered, and the limitations in any conclusions you may draw. Always try to challenge your data analysis in a critical way. Frequently, there are no unique solutions. 
+
+Case studies in each homework can be listed as your data science projects (e.g. on your CV) where you see fit. 
+
+
+
+## Objectives 
+
+- Get familiar with `R-studio` and `RMarkdown`
+- Hands-on R 
+- Learn data science essentials 
+    - gather data
+    - clean data
+    - summarize data 
+    - display data
+    - conclusion
+- Packages
+    - `dplyr`
+    - `ggplot`
+    - `gridExtra`
+
+##  Instructions
+
+- **Homework assignments can be done in a group consisting of up to three members**. Please find your group members as soon as possible and register your group on our Canvas site.
+
+- **All work submitted should be completed in the R Markdown format.** You can find a cheat sheet for R Markdown [here](https://github.com/rstudio/cheatsheets/raw/master/rmarkdown-2.0.pdf). For those who have never used it before, we urge you to start this homework as soon as possible. 
+
+- **Submit the following files, one submission for each group:**  (1) Rmd file, (2) a compiled PDF or HTML version, and (3) all necessary data files if different from our source data. You may directly edit this .rmd file to add your answers. If you intend to work on the problems separately within your group, compile your answers into one Rmd file before submitting. We encourage that you at least attempt each problem by yourself before working with your teammates. Additionally, ensure that you can 'knit' or compile your Rmd file. It is also likely that you need to configure Rstudio to properly convert files to PDF. [**These instructions**](http://kbroman.org/knitr_knutshell/pages/latex.html#converting-knitrlatex-to-pdf) might be helpful.
+
+- In general, be as concise as possible while giving a fully complete answer to each question. All necessary datasets are available in this homework folder on Canvas. Make sure to document your code with comments (written on separate lines in a code chunk using a hashtag `#` before the comment) so the teaching fellows can follow along. R Markdown is particularly useful because it follows a 'stream of consciousness' approach: as you write code in a code chunk, make sure to explain what you are doing outside of the chunk. 
+
+- A few good or solicited submissions will be used as sample solutions. When those are released, make sure to compare your answers and understand the solutions.
+
+
+## Review materials
+
+- Study Advanced R Tutorial (to include `dplyr` and `ggplot`)
+- Study lecture 1: Data Acquisition and EDA
+
+
+# Case study 1: Audience Size
+
+How successful is the Wharton Talk Show [Business Radio Powered by the Wharton School](https://businessradio.wharton.upenn.edu/)  
+
+
+**Background:** Have you ever listened to [SiriusXM](https://www.siriusxm.com/)? Do you know there is a **Talk Show** run by Wharton professors in Sirius Radio?  Wharton launched a talk show called [Business Radio Powered by the Wharton School](https://businessradio.wharton.upenn.edu/) through the Sirius Radio station in January of 2014. Within a short period of time the general reaction seemed to be overwhelmingly positive. To find out the audience size for the show, we designed a survey and collected a data set via MTURK in May of 2014. Our goal was to **estimate the audience size**. There were 51.6 million Sirius Radio listeners then. One approach is to estimate the proportion of the Wharton listeners to that of the Sirius listeners, $p$, so that we will come up with an audience size estimate of approximately 51.6 million times $p$. 
+
+To do so, we launched a survey via Amazon Mechanical Turk ([MTurk](https://www.mturk.com/)) on May 24, 2014 at an offered price of \$0.10 for each answered survey.  We set it to be run for 6 days with a target maximum sample size of 2000 as our goal. Most of the observations came in within the first two days. The main questions of interest are "Have you ever listened to Sirius Radio" and "Have you ever listened to Sirius Business Radio by Wharton?". A few demographic features used as control variables were also collected; these include Gender, age and Household Income.  
+
+We requested that only people in United States answer the questions. Each person can only fill in the questionnaire once to avoid duplicates. Aside from these restrictions, we opened the survey to everyone in MTurk with a hope that the sample would be more randomly chosen. 
+
+The raw data is stored as `Survey_results_final.csv` on Canvas.
+
+## Data preparation
+
+i. We need to clean and select only the variables of interest. 
+
+Select only the variables age, Gender, Education Level, Household Income in 2013, Sirius Listener?, Wharton Listener? and Time used to finish the survey.
+
+Change the variable names to be "age", "gender", "education", "income", "sirius", "wharton", "worktime".
+
+```{r eval=F}
+file <- "C:/Users/phili/Desktop/STAT 571/Homework 1/data/Survey_results_final.csv"
+data_raw <- read.csv(file)
+
+
+# select columns
+data_raw <- data_raw %>% select(Answer.Age, Answer.Gender, Answer.Education, Answer.HouseHoldIncome, Answer.Sirius.Radio, Answer.Wharton.Radio, WorkTimeInSeconds)
+
+# rename columns
+setnames(data_raw, old = c('Answer.Age','Answer.Gender','Answer.Education','Answer.HouseHoldIncome', 'Answer.Sirius.Radio', 'Answer.Wharton.Radio', 'WorkTimeInSeconds'), new = c('age','gender','education', 'income', 'sirius', 'wharton', 'worktime'))
+
+```
+
+ii. Handle missing/wrongly filled values of the selected variables
+
+As in real world data with user input, the data is incomplete, with missing values, and has incorrect responses. There is no general rule for dealing with these problems beyond “use common sense.” In whatever case, explain what the problems were and how you addressed them. Be sure to explain your rationale for your chosen methods of handling issues with the data. Do not use Excel for this, however tempting it might be.
+
+Tip: Reflect on the reasons for which data could be wrong or missing. How would you address each case? For this homework, if you are trying to predict missing values with regression, you are definitely overthinking. Keep it simple.
+
+```{r eval=F}
+
+### process age. Since age is numeric we use can use mean to replace invalid/missing values.
+
+data_raw$age <- as.numeric(data_raw$age)
+# ages 4 and 223 don't make sense
+data_raw$age[data_raw$age == 4 | data_raw$age ==223] <- NA
+data_raw$age[is.na(data_raw$age)] <- mean(data_raw$age, na.rm=TRUE)
+# see if values look right
+unique(data_raw$age)
+
+#define Mode
+Mode <- function(x) {
+ux <- unique(x)
+ux[which.max(tabulate(match(x, ux)))]
+}
+
+### process gender, education, income, sirius, and wharton. Since these are categorical we use Mode to replace missing/invalid values.
+data_raw$gender[data_raw$gender == ""] <- Mode(data_raw$gender)
+data_raw$education[data_raw$education == "select one" | data_raw$education == "Other"] <- Mode(data_raw$education)
+data_raw$income[data_raw$income == ""] <- Mode(data_raw$income)
+data_raw$sirius[data_raw$sirius == ""] <- Mode(data_raw$sirius)
+data_raw$wharton[data_raw$wharton == ""] <- Mode(data_raw$wharton)
+
+data <- data_raw
+```
+
+iii. Brief summary 
+
+Write a brief report to summarize all the variables collected. Include both summary statistics (including sample size) and graphical displays such as histograms or bar charts where appropriate. Comment on what you have found from this sample. (For example - it's very interesting to think about why would one work for a job that pays only 10cents/each survey? Who are those survey workers? The answer may be interesting even if it may not directly relate to our goal.)
+
+## ANSWER ##
+
+1. Sample size: 1,764
+2. Number of Sirius listeners: 1,365
+3. Number of Wharton listeners (out of 1,365 Sirius listeners): 68
+4. P: 0.0498 <- (68/1,365)
+
+Observations: Some responses are bogus responses given by programs. For example, one record show a worktime of 4 seconds (while there are 7 responses required). Two responses answered 'No' to being a Sirius listener and 'Yes' to being a Wharton listener.
+
+## ANSWER ##
+
+```{r eval=F}
+# summary stats
+summary <- summary(data)
+sample_size <- data %>% summarise(count = n())
+
+# data on folks who answered 'Yes' to listening to Sirius and Wharton
+wharton_listeners <- data[data$sirius == 'Yes' & data$wharton == 'Yes', ]
+
+# p
+p <- nrow(wharton_listeners)/nrow(data[data$sirius == 'Yes', ])
+  
+# stats for numeric features (age and worktime)
+age_stats <- data %>% select(age) %>% 
+  summarise(
+     mean = mean(age),
+     sd   = sd(age),
+     max = max(age),
+     min = min(age),
+     "0%" = quantile(age)[1],
+     "25%" = quantile(age)[2],
+     "50%" = quantile(age)[3],
+     "75%" = quantile(age)[4],
+     "100%" = quantile(age)[5]
+)
+
+worktime_stats <- data %>% select(worktime) %>% 
+  summarise(
+    mean = mean(worktime),
+    sd   = sd(worktime),
+    max = max(worktime),
+    min = min(worktime),
+    "0%" = quantile(worktime)[1],
+    "25%" = quantile(worktime)[2],
+    "50%" = quantile(worktime)[3],
+    "75%" = quantile(worktime)[4],
+    "100%" = quantile(worktime)[5]
+)
+
+# stats for categorical features (gender, education, income, sirius, wharton)
+gender_stats <- data %>% group_by(gender) %>% summarise(count = n()) %>% mutate(proportion = (count / sum(count)))
+
+education_stats <- data %>% group_by(education) %>% summarise(count = n()) %>% mutate(proportion = (count / sum(count)))
+
+income_stats <- data %>% group_by(income) %>% summarise(count = n()) %>% mutate(proportion = (count / sum(count)))
+
+sirius_stats <- data %>% group_by(sirius) %>% summarise(count = n()) %>% mutate(proportion = (count / sum(count)))
+
+wharton_stats <- data %>% group_by(wharton) %>% summarise(count = n()) %>% mutate(proportion = (count / sum(count)))
+```
+
+** GRAPHS **
+
+``` {r eval=F}
+# age distribution
+ggplot(data, aes(x=age)) +
+    geom_histogram(binwidth=.5, colour="black", fill="white") +
+    geom_vline(aes(xintercept=mean(age, na.rm=T)),   
+               color="blue", linetype="dashed", size=1)
+
+# gender
+ggplot(gender_stats, aes(x = gender, y = count)) + geom_bar(stat = "identity", width=.5, colour="blue", fill="blue")
+
+# education
+ggplot(education_stats, aes(x = education, y = count)) + geom_bar(stat = "identity", width=.5, colour="blue", fill="blue") + coord_flip()
+
+# income
+ggplot(income_stats, aes(x = income, y = count)) + geom_bar(stat = "identity", width=.5, colour="blue", fill="blue") + coord_flip()
+
+# sirius
+ggplot(sirius_stats, aes(x = sirius, y = count)) + geom_bar(stat = "identity", width=.5, colour="blue", fill="blue") + coord_flip()
+
+# wharton
+ggplot(wharton_stats, aes(x = wharton, y = count)) + geom_bar(stat = "identity", width=.5, colour="blue", fill="blue") + coord_flip()
+
+# worktime distribution
+ggplot(data, aes(x=worktime)) +
+    geom_histogram(binwidth=.5, colour="black", fill="white") +
+    geom_vline(aes(xintercept=mean(worktime, na.rm=T)),   
+               color="blue", linetype="dashed", size=1)
+
+
+```
+
+
+## Sample properties
+
+
+The population from which the sample is drawn determines where the results of our analysis can be applied or generalized. We include some basic demographic information for the purpose of identifying sample bias, if any exists. Combine our data and the general population distribution in age, gender and income to try to characterize our sample on hand.
+
+i. Does this sample appear to be a random sample from the general population of the USA?
+
+## ANSWER ##
+
+No, there are age and gender biases. Sample is biased to younger age range, older generations such as gen x and baby boomers are conspicuously underrepresented. and sample is male-biased, sample is ~57.8% male whereas population is just under 50% male in 2014.
+
+There is less evidence for sample bias with respect to income. Mean personal income in U.S. was approx. USD43k in 2014 (https://fred.stlouisfed.org/series/MAPAINUSA646N), and the sample largely reflects this (assuming normal distribution with mean of USD43k) 
+
+## ANSWER ##
+
+ii. Does this sample appear to be a random sample from the MTURK population?
+
+## ANSWER ##
+
+No, according to a paper 70% of MTURK is female and only 42.2% of the survey respondents are female. The sample also reflects U.S. income levels more closely than TURKers income levels (over half of TURKers are from outside the U.S., The majority of whom are from India which has significantly lower income mean). 
+
+This resource was obtain from Prof. Chris Callison-Burch's crowdsourcing-class page.
+(http://crowdsourcing-class.org/readings/downloads/platform/demographics-of-mturk.pdf)
+
+Note: You can not provide evidence by simply looking at our data here. For example, you need to find distribution of education in our age group in US to see if the two groups match in distribution. You may need to gather some background information about the MTURK population to have a slight sense if this particular sample seem to a random sample from there... Please do not spend too much time gathering evidence. 
+
+## ANSWER ##
+
+## Final estimate
+
+Give a final estimate of the Wharton audience size in January 2014. Assume that the sample is a random sample of the MTURK population, and that the proportion of Wharton listeners vs. Sirius listeners in the general population is the same as that in the MTURK population. Write a brief executive summary to summarize your findings and how you came to that conclusion.
+
+To be specific, you should include:
+
+1. Goal of the study
+2. Method used: data gathering, estimation methods
+3. Findings
+4. Limitations of the study. 
+
+## ANSWER
+Executive Summary
+
+1. Goal of the study
+The goal of this study is to assess the popularity of Business Radio ('the Wharton Talkshow') among SiriusXM listeners. Specifically we want to estimate p, the proportion of SiriusXM listeners who listens to the talkshow.
+
+2. Method used
+We used Amazon's MTURK survey to gather our sample data. Respondents are asked to input their age, gender, education level, income level, and to answer whether or not they listen to SiriusXM and the Wharton talkshow. 
+
+We replaced missing and invalid values with mean for numeric features and mode for categorical features.
+
+3. Findings
+We estimate from the sample that 4.98% of SiriusXM listeners (~2.57 million) have listened to the Wharton talkshow at least once.
+
+4. Limitations of the study
+There is evidence for sampling bias in the data we collected. Older generations such as gen x and baby boomers are conspicuously underrepresented in the sample data. The data is also male-biased, as ~57.8% of the respondents are male whereas U.S. population percentage is just under 50%.
+
+## ANSWER
+
+## New task
+
+Now suppose you are asked to design a study to estimate the audience size of Wharton Business Radio Show as of today: You are given a budget of $1000. You need to present your findings in two months. 
+
+Write a proposal for this study which includes:
+
+1. Method proposed to estimate the audience size.
+2. What data should be collected and where it should be sourced from.
+Please fill in the google form to list your platform where surveys will be launched and collected [HERE](https://forms.gle/8SmjFQ1tpqr6c4sa8) 
+
+A good proposal will give an accurate estimation with the least amount of money used. 
+
+## ANSWER
+1. Method
+
+We will post a survey to Reddit.com/r/siriusxm, which is dedicated to Sirius XM listeners and has 9,000 followers. The survey will be written using SurveyMonkey. As incentive, one respondent will be randomly selected to win USD1,000 minus the amount of money needed to use SurveyMonkey's service (USD 32).
+
+2. Data collection
+
+We will ask respondents to input their Reddit username, age, gender, income, and whether or not they listen to Sirius and Wharton. We will also design our survey such that IP addresses of our respondents are recorded. This is to prevent our data from being distorted from respondents who may enter multiple answers to increase chances to win the prize.  
+
+## ANSWER
+
+# Case study 2: Women in Science
+
+
+Are women underrepresented in science in general? How does gender relate to the type of educational degree pursued? Does the number of higher degrees increase over the years? In an attempt to answer these questions, we assembled a data set (`WomenData_06_16.xlsx`) from [NSF](https://ncses.nsf.gov/pubs/nsf19304/digest/field-of-degree-women) about various degrees granted in the U.S. from 2006 to 2016. It contains the following variables: Field (Non-science-engineering (`Non-S&E`) and sciences (`Computer sciences`, `Mathematics and statistics`, etc.)), Degree (`BS`, `MS`, `PhD`), Sex (`M`, `F`), Number of degrees granted, and Year.
+
+Our goal is to answer the above questions only through EDA (Exploratory Data Analyses) without formal testing. We have provided sample R-codes in the appendix to help you if needed. 
+
+
+## Data preparation  
+
+1. Understand and clean the data
+
+Notice the data came in as an Excel file. We need to use the package `readxl` and the function `read_excel()` to read the data `WomenData_06_16.xlsx` into R. 
+
+i. Read the data into R.
+
+``` {r eval=FALSE}
+library(readxl)
+file <- "C:/Users/phili/Desktop/STAT 571/Homework 1/data/WomenData_06_16.xlsx"
+data2_raw <- read_excel(file)
+```
+ii. Clean the names of each variables. (Change variable names to  `Field`,`Degree`, `Sex`, `Year` and `Number` )
+
+``` {r eval=FALSE}
+library(data.table)
+setnames(data2_raw, old = c('Field and sex', 'Degrees Awarded'), new = c('Field', 'Number'))
+```
+iii. Set the variable natures properly. 
+``` {r eval=FALSE}
+data2_raw$Year <- as.numeric(data2_raw$Year)
+data2_raw$Number <- as.numeric(data2_raw$Number)
+
+data2 <- data2_raw
+```
+
+iv. Any missing values?
+
+## ANSWER ##
+
+No, running the chunk below doesn't indicate any missing values.
+
+## ANSWER ##
+``` {r eval=FALSE}
+# check for any NA in list
+data2_raw$Field[is.na(data_raw$Field)] 
+data2_raw$Degree[is.na(data_raw$Degree)] 
+data2_raw$Sex[is.na(data_raw$Sex)] 
+data2_raw$Year[is.na(data_raw$Year)] 
+data2_raw$Number[is.na(data_raw$Number)] 
+
+unique(data2_raw$Field)
+unique(data2_raw$Degree)
+unique(data2_raw$Sex)
+unique(data2_raw$Year)
+unique(data2_raw$Number)
+
+
+```
+
+2. Write a summary describing the data set provided here. 
+
+i. How many fields are there in this data?
+
+## ANSWER ##
+10 Fields 
+## ANSWER ##
+
+``` {r eval=FALSE}
+unique(data2$Field)
+```
+
+ii. What are the degree types? 
+
+## ANSWER ##
+BS, MS, PHD
+## ANSWER ##
+
+iii. How many year's statistics are being reported here? 
+
+## ANSWER ##
+11 Years (2006-2016)
+## ANSWER ##
+
+
+## BS degrees in 2015
+
+Is there evidence that more males are in science-related fields vs `Non-S&E`? Provide summary statistics and a plot which shows the number of people by gender and by field. Write a brief summary to describe your findings.
+
+## ANSWER ##
+
+No, in the year 2015 for BS degrees there are more male Non-S&E major than male S&E majors.
+
+The most important finding in this is there are roughly equal numbers of male and female S&E majors in the year 2015 among those pursuing a BS degree. Specifically there were 322,935 female and 327,122 male. So simply by looking at this subset of the data we can conclude the assumption that women are underrepresented in the field of science and engineering is false.
+
+## ANSWER ##
+
+
+
+``` {r eval=FALSE}
+
+data2 <- data2 %>% mutate(Category = if_else(Field == "Non-S&E", "Non-S&E", "S&E"))
+data2_2015 <- filter(data2, Year == 2015 & Degree == "BS") 
+data2_sum <- data2_2015 %>% group_by(Category, Sex) %>% summarise(Freq = sum(Number))
+data2_sum2 <- data2_2015 %>% group_by(Field, Sex) %>% summarise(Freq = sum(Number))
+
+data2_sum
+data2_sum2
+
+library(scales)
+
+# 2015 Male S&E and non-S&E
+ggplot(filter(data2_sum, Sex == "Male"), 
+  aes(x = Category , y = Freq)) + 
+  geom_bar(stat = "identity", width=.5, colour="blue", fill="blue") +
+  ggtitle("Comparison between S&E and Non-S&E majors for male students in 2015") +
+  scale_y_continuous(labels = comma, breaks = seq(0, 1000000, by=100000))
+
+# 2015 Female S&E and non-S&E
+ggplot(filter(data2_sum, Sex == "Female"), 
+  aes(x = Category , y = Freq)) + 
+  geom_bar(stat = "identity", width=.5, colour="blue", fill="blue") +
+  ggtitle("Comparison between S&E and Non-S&E majors for female students in 2015") + scale_y_continuous(labels = comma, breaks = seq(0, 1500000, by=100000))
+
+# 2015 Male All Fields
+ggplot(filter(data2_sum2, Sex == "Male"), 
+  aes(x= reorder(Field, Freq), y = Freq)) + 
+  geom_bar(stat = "identity", width=.5, colour="blue", fill="blue") +
+  ggtitle("Comparison among all fields for male students in 2015") +
+  scale_y_continuous(labels = comma, breaks = seq(0, 1000000, by=100000)) + coord_flip()
+
+# 2015 Female All Fields
+ggplot(filter(data2_sum2, Sex == "Female"), 
+  aes(x= reorder(Field, Freq), y = Freq)) + 
+  geom_bar(stat = "identity", width=.5, colour="blue", fill="blue") +
+  ggtitle("Comparison among all fields for female students in 2015") +
+  scale_y_continuous(labels = comma, breaks = seq(0, 1000000, by=100000)) + coord_flip()
+
+
+```
+
+## EDA bringing type of degree, field and gender in 2015
+
+Describe the number of people by type of degree, field, and gender. Do you see any evidence of gender effects over different types of degrees? Again, provide graphs to summarize your findings.
+
+## ANSWER ##
+
+Gender effects over different types of degrees: female students outnumber male students overall, but the gap closes the more advanced the degree. For example, female students outnumber male students by ~280k for BS degrees, ~150k for MS degrees, and by only ~200 for PhD degrees. 
+
+When considering all degree types (BS, MS, and PhD as opposed to just BS in the previous problem), women are slightly underrepresented in 2015, making up 48.4% of those in the S&E field.
+
+## ANSWER ##
+
+``` {r eval=FALSE}
+data2_2015b <- filter(data2, Year == 2015) 
+data2_sumb <- data2_2015b %>% group_by(Category, Sex) %>% summarise(Freq = sum(Number))
+data2_sum2b <- data2_2015b %>% group_by(Field, Sex) %>% summarise(Freq = sum(Number))
+data2_sum3b <- data2_2015b %>% group_by(Degree, Sex) %>% summarise(Freq = sum(Number))
+
+data2_sumb
+data2_sum2b
+data2_sum3b
+
+# 2015 male degree types
+ggplot(filter(data2_sum3b, Sex == "Male"), 
+  aes(x= reorder(Degree, -Freq), y = Freq)) + 
+  geom_bar(stat = "identity", width=.5, colour="blue", fill="blue") +
+  ggtitle("Degree types among male students in 2015") +
+  scale_y_continuous(labels = comma, breaks = seq(0, 1500000, by=100000))
+
+# 2015 female degree types
+ggplot(filter(data2_sum3b, Sex == "Female"), 
+  aes(x= reorder(Degree, -Freq), y = Freq)) + 
+  geom_bar(stat = "identity", width=.5, colour="blue", fill="blue") +
+  ggtitle("Degree types among female students in 2015") +
+  scale_y_continuous(labels = comma, breaks = seq(0, 1500000, by=100000))
+
+# 2015 BS 
+ggplot(filter(data2_sum3b, Degree == "BS"), 
+  aes(x= Sex, y = Freq)) + 
+  geom_bar(stat = "identity", width=.5, colour="blue", fill="blue") +
+  ggtitle("Number of BS students, male and female in 2015") +
+  scale_y_continuous(labels = comma, breaks = seq(0, 1500000, by=100000))
+
+# 2015 MS 
+ggplot(filter(data2_sum3b, Degree == "MS"), 
+  aes(x= Sex, y = Freq)) + 
+  geom_bar(stat = "identity", width=.5, colour="blue", fill="blue") +
+  ggtitle("Number of MS students, male and female in 2015") +
+  scale_y_continuous(labels = comma, breaks = seq(0, 1500000, by=100000))
+
+# 2015 PhD 
+ggplot(filter(data2_sum3b, Degree == "PhD"), 
+  aes(x= Sex, y = Freq)) + 
+  geom_bar(stat = "identity", width=.5, colour="blue", fill="blue") +
+  ggtitle("Number of PhD students, male and female in 2015") +
+  scale_y_continuous(labels = comma, breaks = seq(0, 50000, by=10000))
+
+# 2015 Male All Fields
+ggplot(filter(data2_sum2b, Sex == "Male"), 
+  aes(x= reorder(Field, Freq), y = Freq)) + 
+  geom_bar(stat = "identity", width=.5, colour="blue", fill="blue") +
+  ggtitle("Comparison among all fields for male students in 2015") +
+  scale_y_continuous(labels = comma, breaks = seq(0, 1000000, by=100000)) + coord_flip()
+
+# 2015 Female All Fields
+ggplot(filter(data2_sum2b, Sex == "Female"), 
+  aes(x= reorder(Field, Freq), y = Freq)) + 
+  geom_bar(stat = "identity", width=.5, colour="blue", fill="blue") +
+  ggtitle("Comparison among all fields for female students in 2015") +
+  scale_y_continuous(labels = comma, breaks = seq(0, 1500000, by=200000)) + coord_flip()
+
+# 2015 Male S&E and non-S&E
+ggplot(filter(data2_sumb, Sex == "Male"), 
+  aes(x = Category , y = Freq)) + 
+  geom_bar(stat = "identity", width=.5, colour="blue", fill="blue") +
+  ggtitle("S&E and Non-S&E number comparison, male students in 2015") +
+  scale_y_continuous(labels = comma, breaks = seq(0, 1000000, by=100000))
+
+# 2015 Female S&E and non-S&E
+ggplot(filter(data2_sumb, Sex == "Female"), 
+  aes(x = Category , y = Freq)) + 
+  geom_bar(stat = "identity", width=.5, colour="blue", fill="blue") +
+  ggtitle("S&E and Non-S&E number comparison, female students in 2015") + scale_y_continuous(labels = comma, breaks = seq(0, 1500000, by=100000))
+
+# 2015 S&E Male and Female
+ggplot(filter(data2_sumb, Category == "S&E"), 
+  aes(x = Sex , y = Freq)) + 
+  geom_bar(stat = "identity", width=.5, colour="blue", fill="blue") +
+  ggtitle("S&E students, male and female comparison in 2015") + scale_y_continuous(labels = comma, breaks = seq(0, 1500000, by=100000))
+```
+
+## EDA bring all variables 
+
+In this last portion of the EDA, we ask you to provide evidence numerically and graphically: Do the number of  degrees change by gender, field, and time? 
+
+## ANSWER ##
+
+Yes, as pictured below the number of S&E majors increased steadily from 2006-2016.
+
+From 2006 to 2016 the number of Female S&E majors increased from 307,708 to 434,609, and the number of Male S&E majors from 322,601 to 468,893.
+
+## ANSWER ##
+
+```{r eval=FALSE}
+data2_year <- data2 %>% group_by(Year, Sex, Category) %>% summarise(Freq = sum(Number))
+
+data2_year_sum <- data2 %>% group_by(Sex, Category) %>% summarise(Freq = sum(Number))
+
+data2_year
+data2_year_sum
+
+ggplot(filter(data2_year, Category == "S&E"), aes(fill=Sex, y=Freq, x=Year)) + 
+    geom_bar(position="dodge", stat="identity") + 
+  ggtitle("Annual number of male and female students in S&E fields") +
+  scale_x_continuous(breaks = seq(2000, 2022, by = 1)) +
+  scale_y_continuous(labels = comma, breaks = seq(0, 1500000, by=100000))
+
+ggplot(filter(data2_year_sum, Category == "S&E"), aes(fill=Sex, y=Freq, x=Sex)) +
+    geom_bar(position="dodge", stat="identity") + 
+  ggtitle("Total number of male and female students in S&E fields from 2006 to 2016") +
+  scale_y_continuous(labels = comma, breaks = seq(0, 5000000, by=1000000))
+
+```
+
+## Women in Data Science
+
+Finally, is there evidence showing that women are underrepresented in data science? Data science is an interdisciplinary field of computer science, math, and statistics. You may include year and/or degree.
+
+## ANSWER ##
+Yes, from 2006 to 2016 male students outnumber female students by the approximate ratio of 8 to 3.
+
+## ANSWER ##
+
+``` {r eval=FALSE}
+data2 <- data2 %>% mutate(Category2 = if_else(Field %in% c("Computer sciences", "Mathematics and statistics"), "Data Science", "Non-Data Science"))
+
+data2_year_ds <- data2 %>% group_by(Year, Sex, Category2) %>% summarise(Freq = sum(Number))
+
+data2_year_ds_sum <- data2 %>% group_by(Sex, Category2) %>% summarise(Freq = sum(Number))
+
+data2_year_ds <- filter(data2_year_ds, Category2 == "Data Science") 
+
+data2_year_ds_sum <- filter(data2_year_ds_sum, Category2 == "Data Science") 
+
+data2_year_ds
+data2_year_ds_sum
+
+ggplot(filter(data2_year_ds, Category2 == "Data Science"), aes(fill=Sex, y=Freq, x=Year)) + 
+    geom_bar(position="dodge", stat="identity") + 
+  ggtitle("Annual number of male and female students in Data Science") +
+  scale_x_continuous(breaks = seq(2000, 2022, by = 1)) +
+  scale_y_continuous(labels = comma, breaks = seq(0, 150000, by=10000))
+
+ggplot(data2_year_ds_sum, aes(fill=Sex, y=Freq, x=Sex)) +
+    geom_bar(position="dodge", stat="identity") + 
+  ggtitle("Total number of male and female students in Data Science from 2006 to 2016") +
+  scale_y_continuous(labels = comma, breaks = seq(0, 1000000, by=100000))
+
+```
+
+## Final brief report
+
+Summarize your findings focusing on answering the questions regarding if we see consistent patterns that more males pursue science-related fields. Any concerns with the data set? How could we improve on the study?
+
+## ANSWER ##
+
+Yes, more males pursue science-related fields. From 2006 to 2016, 51.6% of those who pursue S&E fields across all degrees are male. The gap becomes more pronounced when measuring males in data science. From 2006 to 2016, males make up approximately 62.5% of those who pursue data science related degrees.
+
+The dataset seems to suffice for the purposes of the study. However it could be beneficial to have a more granular view of the majors being pursued (i.e. instead of 'engineering' we have chemical engineering, mechanical engineering, etc). And one way we can improve the study is by measuring also how women are being represented in each of these fields. For example, in the field of Psychology and Social sciences women significantly outnumber men, and in the field of Data Science the reverse is true, as we have seen above.
+
+## ANSWER ##
+```{r eval=FALSE}
+ggplot(filter(data2_year, Category == "S&E"), aes(fill=Sex, y=Freq, x=Year)) + 
+    geom_bar(position="dodge", stat="identity") + 
+  ggtitle("Annual number of male and female students in S&E fields") +
+  scale_x_continuous(breaks = seq(2000, 2022, by = 1)) +
+  scale_y_continuous(labels = comma, breaks = seq(0, 1500000, by=100000))
+
+ggplot(filter(data2_year_ds, Category2 == "Data Science"), aes(fill=Sex, y=Freq, x=Year)) + 
+    geom_bar(position="dodge", stat="identity") + 
+  ggtitle("Annual number of male and female students in Data Science") +
+  scale_x_continuous(breaks = seq(2000, 2022, by = 1)) +
+  scale_y_continuous(labels = comma, breaks = seq(0, 150000, by=10000))
+
+```
+
+
+
+# Case study 3: Major League Baseball
+
+We would like to explore how payroll affects performance among Major League Baseball teams. The data is prepared in two formats record payroll, winning numbers/percentage by team from 1998 to 2014. 
+
+Here are the datasets:
+
+-`MLPayData_Total.csv`: wide format
+-`baseball.csv`: long format
+
+Feel free to use either dataset to address the problems. 
+
+## EDA: Relationship between payroll changes and performance
+
+Payroll may relate to performance among ML Baseball teams. One possible argument is that what affects this year's performance is not this year's payroll, but the amount that payroll increased from last year. Let us look into this through EDA. 
+
+Create increment in payroll
+
+i. To describe the increment of payroll in each year there are several possible approaches. Take 2013 as an example:
+
+    - option 1: diff: payroll_2013 - payroll_2012
+    - option 2: log diff: log(payroll_2013) - log(payroll_2012)
+
+Explain why the log difference is more appropriate in this setup.
+
+ii. Create a new variable `diff_log=log(payroll_2013) - log(payroll_2012)`. Hint: use `dplyr::lag()` function.
+
+iii. Create a long data table including: team, year, diff_log, win_pct
+
+
+## Exploratory questions
+
+i. Which five teams had highest increase in their payroll between years 2010 and 2014, inclusive?
+
+ii. Between 2010 and 2014, inclusive, which team(s) "improved" the most? That is, had the biggest percentage gain in wins?
+
+
+## Do log increases in payroll imply better performance? 
+
+Is there evidence to support the hypothesis that higher increases in payroll on the log scale lead to increased performance?
+
+Pick up a few statistics, accompanied with some data visualization, to support your answer. 
+
+## Comparison
+
+Which set of factors are better explaining performance? Yearly payroll or yearly increase in payroll? What criterion is being used? 
+
+
+
+
+
+
