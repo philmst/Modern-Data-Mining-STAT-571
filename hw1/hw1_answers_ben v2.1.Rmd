@@ -1,0 +1,512 @@
+---
+title: "Homework 1: Group 25"
+author: "members' names"
+date: "1/22/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width=8, fig.height=4)
+options(scipen = 0, digits = 3)  # controls base R output
+if(!require('pacman')) {
+  install.packages('pacman')
+}
+pacman::p_load(ggplot2, dplyr, tidyverse, gridExtra, ggrepel, plotly, skimr, tidytext, car) 
+# install a package if it does not exist already and put the package in the path (library)
+# dplyr, ggplot2,tidyr
+```
+
+# Case study 1: Audience Size
+
+```{r read data, include=FALSE}
+survey_original <- read.csv("data/survey_results_final.csv", header=T, stringsAsFactors = FALSE)
+```
+
+## 1) Data preparation
+
+### i. Clean & select only the variables of interest
+
+We first import the dataframe name name it "survey_adjusted."
+We have used the following code select only variables of interest and rename them as instructed:
+
+```{r data_prep}
+survey_adjusted <- survey_original %>% 
+  rename(age = Answer.Age, gender = Answer.Gender, education = Answer.Education, income = Answer.HouseHoldIncome, sirius = Answer.Sirius.Radio, wharton = Answer.Wharton.Radio, worktime = WorkTimeInSeconds) %>%
+  select(age, gender, education, income, sirius, wharton)
+
+survey_adjusted$index <- 1:nrow(survey_adjusted) #add an index column so we can identify the samples later on
+```
+
+### ii. Handle missing/wrongly filled values of the selected variables
+
+We will proceed with the following two steps in this process:
+
+1. Eliminate samples with missing or invalid values for "sirius" or "wharton"
+
+    Since our goal is to estimate the audience size of Wharton's show on Sirius Radio, in the estimation of the audience size, we will only exclude samples with missing or invalid values for one of the following questions:
+
+    + Have you ever listened to Sirius Radio? ("sirius")
+    + Have you ever listened to Sirius Radio by Wharton? ("wharton")  
+<br>
+2. Adjust samples with missing values or incorrect responses if possible
+
+    We will not eliminate any of the samples with missing values or incorrect responses in the following columns:
+
+    + age
+    + gender
+    + education
+    + income
+
+    This is because the missing values or incorrect responses does not affect our goal of estimating the audience size of Wharton's radio show.
+
+    However, we will look at incorrect responses and see if reasonable adjustments can be made.
+    
+    As for samples with missing values, we suspect that it results from the people surveyed not wanting to disclose their personal information, such as age, gender, education, or income. Therefore, these samples are still viable to be used in our estimation of the audience size.
+<br>
+<br>
+
+#### 1. Eliminate samples with missing or invalid values for "sirius" or "wharton"
+We first look at what unique values are in the columns "sirius" and "wharton" to identify which values, other than blank values, will help us pinpoint which samples should be excluded.
+
+```{r check which values to remove, eval=FALSE}
+unique(survey_adjusted[c("sirius")])
+unique(survey_adjusted[c("wharton")])
+```
+
+From the code above, we learned that there are three values for "sirius" and "wharton" in the dataframe survey_adjusted:
+
+1. Yes
+2. No
+3. (blank)
+
+Therefore, we will exclude all samples with blank values (= `r sum(survey_adjusted$sirius == "" | survey_adjusted$wharton == "")` samples in total) in either "sirius" or "wharton" columns from our dataset using the following code:
+```{r remove missing values}
+survey_adjusted2 <- survey_adjusted %>%
+  filter(sirius!="" & wharton!="")
+```
+<br>
+
+#### 2. Adjust samples with missing values or incorrect responses if possible
+
+We will take different approaches for continuous and categorical variables:
+
+- For continuous variable (age):
+  + Look at the distribution to see if there are any outliers or non-numerical values
+  + Mark samples with outlier values to be excluded from our analysis of survey respondents' characteristics
+  + Look at non-numerical values and see if they can be adjusted to a numerical value. If that is not possible, mark them to be excluded from our analysis of survey respondents' characteristics
+
+- For categorical variables (gender, education, income):
+  + Look at the unique values of each variable
+  + See if any samples' answers can be adjusted to one of the valid answers (i.e. fixing a typo)
+  + Mark samples that cannot adjusted, and those with blank values to be excluded from our analysis of survey respondents' characteristics
+
+<br>
+
+##### 2a. Adjusting continuous variables (age)
+
+**Checking for non-numerical values**
+
+```{r, eval=FALSE}
+survey_adjusted2 %>%
+  mutate(age_numerical = age) %>% #clone a column (age) and create a new one age_numerical
+  mutate(age_numerical = as.numeric(age_numerical)) %>% #coerce all values in "age_numerical" to numerical - non-numerical values will be turned into NA
+  filter(is.na(age_numerical)) #filter out the samples with non-numerical values in age
+  c("age")  #list out the values in "age" for those samples 
+```
+The code above produces the following table:
+
+```{r, include=FALSE}
+age_nonnumerical <- survey_adjusted2 %>%
+  mutate(age_numerical = age) %>% #clone a column (age) and create a new one age_numerical
+  mutate(age_numerical = as.numeric(age_numerical)) %>% #coerce all values in "age_numerical" to numerical - non-numerical values will be turned into NA
+  filter(is.na(age_numerical)) #filter out the samples with non-numerical values in age
+  c("age") 
+```
+
+```{r, echo=FALSE}
+knitr::kable(age_nonnumerical)
+```
+
+We will make the following adjustments regarding age data of these three samples into the dataframe "survey_adjusted2"
+
+- Change "Eighteen (18)" & "27`" into "18" & "27" respectively.
+```{r}
+survey_adjusted2["age"][survey_adjusted2["age"] == "Eighteen (18)"] <- 18
+survey_adjusted2["age"][survey_adjusted2["age"] == "27`"] <- 27
+```
+
+- Mark the response with "female" inserted as age to be excluded from our analysis of survey respondents' characteristics. (Although it will be used in our estimation of audience size.)
+```{r}
+survey_adjusted2$exclude_respondent_analysis <- "" #add new column to mark exclusion from audience analysis
+survey_adjusted2["exclude_respondent_analysis"][survey_adjusted2["age"] == "female"] <- "yes" #mark as excluded 
+survey_adjusted2["exclude_respondent_analysis"][survey_adjusted2["exclude_respondent_analysis"] != "yes"] <- "no" #include other samples for now
+```
+
+- Additionally, we will also exclude responses with blank values in age to be excluded from our analysis of survey respondents' characteristics. (Again, these samples willbe used in our estimation of audience size.)
+```{r}
+survey_adjusted2["exclude_respondent_analysis"][survey_adjusted2["age"] == ""] <- "no" 
+```
+<br>
+
+**Checking for outliers**
+
+To check for outliers, we will first visualize the age data into a boxplot.
+
+*Note: we will only look at data with age as numerical numbers.*
+```{r, include=FALSE, warning=FALSE}
+survey_adjusted2 <- survey_adjusted2 %>%  #mutate age into numeric values
+  mutate(age = as.numeric(age))
+  
+age_outlier_check <- survey_adjusted2 %>% #create new data set for the box plot
+  filter(exclude_respondent_analysis == "no")
+```
+
+```{r, echo=FALSE, warning=FALSE}
+plot1<-Boxplot(age_outlier_check$age, id=list(labels=age_outlier_check$age), xlab="", ylab = "age", main="Boxplot of respondents' age (before removing outliers)")
+```
+
+We can see from the box plot above that there are two outliers: a respondent with age 4 and 223.
+We will exclude these two responses from our analysis of audience characteristics.
+```{r, echo=FALSE}
+survey_adjusted2["exclude_respondent_analysis"][survey_adjusted2["age"] == 4 | survey_adjusted2["age"] == 223] <- "yes"
+```
+
+The boxplot of respondents' age after removing the outliers looks like this:
+```{r, echo=FALSE, warning=FALSE}
+age_outlier_removed <- survey_adjusted2 %>% #create new data set for the box plot
+  filter(exclude_respondent_analysis == "no")
+
+plot2<-Boxplot(age_outlier_removed$age, id=FALSE, xlab="", ylab = "age", main="Boxplot of respondents' age (after removing outliers)")
+```
+
+##### 2b. Adjusting categorical variables
+
+We used the following code to see the unique values in responses for "gender" "education" and "income."
+```{r, eval=FALSE}
+unique(survey_adjusted2[c("gender")])
+unique(survey_adjusted2[c("education")])
+unique(survey_adjusted2[c("income")])
+```
+
+As a result, we found that:
+
+- `r sum(survey_adjusted2$gender == "")` respondents did not report their gender (blank value)
+- `r sum(survey_adjusted2$income == "")` respondents did not report their income (blank value)
+- `r sum(survey_adjusted2$education == "select one")` respondents did not report their education level (value = "select one")
+
+Therefore, we will mark these responses so that they will be excluded from our analysis of the respondents' characteristics
+```{r}
+survey_adjusted2["exclude_respondent_analysis"][survey_adjusted2["gender"] == ""] <- "yes"
+survey_adjusted2["exclude_respondent_analysis"][survey_adjusted2["income"] == ""] <- "yes"
+survey_adjusted2["exclude_respondent_analysis"][survey_adjusted2["education"] == "select one"] <- "yes"
+```
+
+To reiterate, we did not adjust any categorical variables, rather we marked samples with invalid values to be excluded from our analysis of the respondents' characteristics
+
+
+### iii. Brief summary
+
+```{r, include = FALSE}
+survey_adjusted3 <- survey_adjusted2
+survey_adjusted3[survey_adjusted3 == "NA"] <-"" #change all NAs into blanks (using new dataframe survey_adjusted3)
+
+survey_resana <- survey_adjusted3 %>% #create dataframe survey_resama for respondent analysis
+  filter(exclude_respondent_analysis == "no")
+```
+
+This is the summary data of all the variables collected:
+<br>
+*Remark: we have excluded some data as shown in the previous process from the analysis of survey respondents' characteristics*
+
+#### Age
+The mean of respondents' age is `r mean(survey_resana$age)`, and the standard deviation is `r sd(survey_resana$age)`.
+Below is a histogram showing the age distribution among respondents. 
+<br>
+```{r histogram for age, echo=FALSE}
+ggplot(data = survey_resana, mapping = aes(x = age))+
+  geom_histogram(binwidth=5, color="white")+
+  xlab("Age")+
+  ylab("Number of respondents")+
+  ggtitle("Number of respondents (by age)")+
+  theme_minimal()
+
+``` 
+
+#### Education
+Below is a histogram showing the number of respondents by education level. 
+<br>
+```{r histogram for education, warning=FALSE, echo=FALSE}
+
+survey_resana$education <- factor(survey_resana$education, levels = c("Other","Less than 12 years; no high school diploma","High school graduate (or equivalent)","Some college, no diploma; or Associate’s degree","Bachelor’s degree or other 4-year degree" ,"Graduate or professional degree"))
+
+ggplot(data = survey_resana, mapping = aes(education))+
+  geom_bar()+
+  xlab("Education Level")+
+  ylab("Number of respondents")+
+  ggtitle("Number of respondents (by education level)")+
+  coord_flip()+
+  theme_minimal()
+
+```
+
+<br>
+
+#### Income
+```{r histogram for income, warning=FALSE, echo=FALSE}
+
+survey_resana$income <- factor(survey_resana$income, levels = c("Less than $15,000","$15,000 - $30,000", "$30,000 - $50,000", "$50,000 - $75,000" ,"$75,000 - $150,000", "Above $150,000"))
+
+ggplot(data = survey_resana, mapping = aes(income))+
+  geom_bar()+
+  xlab("Income")+
+  ylab("Number of respondents")+
+  ggtitle("Number of respondents (by income)")+
+  coord_flip()+
+  theme_minimal()
+
+```
+
+
+#### Gender
+```{r histogram for gender, warning=FALSE, echo=FALSE}
+
+ggplot(data = survey_resana, mapping = aes(gender))+
+  geom_bar()+
+  xlab("Gender")+
+  ylab("Number of respondents")+
+  ggtitle("Number of respondents (by gender)")+
+  coord_flip()+
+  theme_minimal()
+
+```
+
+
+
+Write a brief report to summarize all the variables collected. Include both summary statistics (including sample size) and graphical displays such as histograms or bar charts where appropriate. Comment on what you have found from this sample. (For example - it’s very interesting to think about why would one work for a job that pays only 10cents/each survey? Who are those survey workers? The answer may be interesting even if it may not directly relate to our goal.)
+
+
+
+## 2) Sample properties
+
+i. Does this sample appear to be a random sample from the general population of the USA? 
+ii. Does this sample appear to be a random sample from the MTURK population?
+
+TBD
+
+## 3) Final estimate
+
+### 3.1 Goal of the study
+
+The goal of the study is to estimate the audience size of the Business Radio Powered by the Wharton School in Sirius Radio in January 2014.
+
+### 3.2 Method used: data gathering, estimation methods
+
+We have gathered data by using a survey on Amazon Mechanical Turk (MTURK) on May 24, 2014.
+The main questions of interest in the survey are: 
+
+- “Have you ever listened to Sirius Radio”
+- “Have you ever listened to Sirius Business Radio by Wharton?”
+
+Our estimation of the audience size of Wharton's radio program is based on the following assumptions:
+
+- The sampling frame, the people surveyed on MTURK, is representative of the target population, the people living in the US
+- A Sirius Radio listener on MTURK is just as likely as a typical Sirius Radio listener to listen to Wharton's radio program
+
+We estimated the audience size of Wharton's radio program by:
+
+- Estimating the proportion of Sirius listeners who listen to Wharton's radio program using the proportion of Wharton radio program listeners to Sirius Radio listeners surveyed
+- Multiply that proportion to 51.6 million, the number of Sirius Radio listeners in May of 2014
+
+### 3.3 Findings
+```{r parameters setup, include=FALSE}
+sirius_audience <- sum(survey_adjusted2$sirius=="Yes")
+wharton_audience <- sum(survey_adjusted2$wharton=="Yes")
+wharton_share <- wharton_audience/sirius_audience
+```
+We have estimated that the audience size for Business Radio Powered by the Wharton School is **`r wharton_share*51.6` million people.**
+
++ We have estimated that *p*, the proportion of the Wharton listeners to that of the Sirius listeners, is `r wharton_share*100`%.
++ We assumed that the total number of Sirius Radio listeners are 51.6 million people, using the data from May 2014.
+
+*Reference:* We estimated using the dataframe "survey_adjusted2," used the following code to estimate *p*, expressed in the code below as "wharton_share."
+```{r calculate audience size, eval=FALSE}
+sirius_audience <- sum(survey_adjusted2$sirius=="Yes")
+wharton_audience <- sum(survey_adjusted2$wharton=="Yes")
+wharton_share <- wharton_audience/sirius_audience
+```
+
+### 3.4 Limitations of the study
+
+Here are the limitations of this study:
+
+1) The number of Sirius Radio listeners could have significantly changed between January and May of 2014
+2) The MTURK population might not be representative of the US population
+3) The Sirius radio listener population on MTURK might not be representative of all Sirius radio listeners
+
+## 4) New task
+TBD
+
+# Case Study 3: Major League Baseball
+
+```{r import data, include = FALSE}
+wide_original <- read.csv("data/MLPayData_Total.csv",  header = T, stringsAsFactors = FALSE)
+long_original <- read.csv("data/baseball.csv", header = T, stringsAsFactors = FALSE)
+```
+
+## 4.1 EDA: Relationship between payroll changes and performance
+
+### i. Explain why the log difference is more appropriate in this setup
+
+The log difference is more appropriate because it represents the percentage change in payroll year-on-year. Therefore, it can be used as a standardized yardstick for measurement for all teams.
+
+In contrast, the absolute difference will differ from team to team because the absolute payroll amount of each team is different.
+
+```{r modify name in data, include = FALSE}
+wide_modified <- wide_original %>%
+  rename(team = Team.name.2014)
+```
+
+### ii. Create a new variable diff_log
+```{r calculate log difference}
+payroll <- wide_modified %>% #turn payroll into long-form
+  select(team, p1999:p2014) %>%
+  pivot_longer(cols=p1999:p2014,
+               names_to = "year",
+               names_prefix = "p",
+               values_to = "payroll")
+
+payroll <- payroll %>% 
+  mutate(payroll_log = log(payroll))%>% #create new column "payroll_log"
+  group_by(team)%>% #group by team first
+  mutate(previous_payroll_log = lag(payroll_log, order_by = year))%>% #Use dlypr::lag, ordering by year
+  mutate(diff_log = payroll_log - previous_payroll_log)
+
+diff_log <- payroll %>%
+  select(team, year, payroll, payroll_log, diff_log)
+
+```
+
+
+### iii. Create a long data table
+```{r turn the data into long data table}
+
+win_pct <- wide_modified %>% 
+  select(team, X1998.pct:X2014.pct) %>%
+  pivot_longer(cols=X1998.pct:X2014.pct,
+               names_to = "year",
+               names_prefix = "X",
+               values_to = "win_pct")%>%
+  mutate(year = substr(year, 1,4)) #mutate the year 2XXX.pct by selecting only position 1 to 4 of the string
+               
+long_modified <- win_pct %>%  #join the pivoted columns in to a long table
+  inner_join(diff_log, by=c("team","year"))
+```
+
+## 4.2 Exploratory questions
+
+### i. Which five teams had highest increase in their payroll between years 2010 and 2014, inclusive?
+
+The five teams th the biggest increase in payroll are shown in the table below.
+
+```{r calculate total % increase in payroll between 2010-2014, include=FALSE}
+
+diff_2010to2014 <- long_modified %>%
+  filter(year == 2010 | year == 2014) %>%
+  select(team, year, payroll_log) %>%
+  pivot_wider(names_from=year,
+              values_from=payroll_log,
+              names_prefix="payroll_log.")
+```
+
+``` {r prep top 5 teams in payroll increase between 2010-2014, include=FALSE}
+diff_2010to2014_print <- diff_2010to2014 %>%
+  mutate(diff_payroll_log.2010to2014 = payroll_log.2014 - payroll_log.2010)%>%
+  select(team, diff_payroll_log.2010to2014) %>%
+  arrange(-diff_payroll_log.2010to2014) %>%
+  slice(1:5)
+
+diff_2010to2014_print$diff_payroll_log.2010to2014 <- diff_2010to2014_print$diff_payroll_log.2010to2014*100
+
+rename(diff_2010to2014_print, "Payroll increase from 2010 to 2014 (%)" = diff_payroll_log.2010to2014)
+
+```
+
+```{r print top 5 payroll increase, echo=FALSE}
+knitr::kable(diff_2010to2014_print)
+```
+
+### ii. Between 2010 and 2014, inclusive, which team(s) “improved” the most? That is, had the biggest percentage gain in wins?
+
+The five teams with the biggest percentage gains in win are shown in the table below.
+Please not that the percentage gain in wins is the difference between win_pct in 2014 and win_pct in 2010.
+
+```{r prep top 5 total % increase in win_pct between 2010-2014, include=FALSE}
+
+win_4yrchange <- long_modified %>%
+  filter(year==2010 | year==2014)%>%
+  select(team,year,win_pct)%>%
+  pivot_wider(names_from=year,
+              values_from=win_pct,
+              names_prefix="win_pct.")
+win_4yrchange <- win_4yrchange %>%
+  mutate(win_pct_4yrchange = win_pct.2014 - win_pct.2010)%>%
+  select(team, win_pct_4yrchange)%>%
+  arrange(-win_pct_4yrchange)%>%
+  slice(1:5)
+
+win_4yrchange$win_pct_4yrchange <- win_4yrchange$win_pct_4yrchange*100
+rename(win_4yrchange, "Percentage gains in wins (2014 vs 2010, in %)" = win_pct_4yrchange)
+```
+
+```{r print top 5 win_pct increase using knitr, echo=FALSE}
+knitr::kable(win_4yrchange)
+```
+
+## 4.3 Do log increases in payroll imply better performance?
+
+```{r, include=FALSE}
+
+#calculate diff_win_pct
+long_modified <- long_modified %>% 
+  group_by(team)%>%
+  mutate(previous_win_pct = lag(win_pct, order_by = year)) %>%
+  mutate(diff_win_pct = win_pct - previous_win_pct)
+```
+
+```{r correlation YoY change in payroll & YoY change in performance, include = FALSE}
+cor_all <- cor(long_modified$diff_log, long_modified$diff_win_pct, method = "pearson", use = "complete.obs") #this deals with the missing cases
+```
+
+Log increases in payroll does not imply better performance.
+This is because there is low correlation between YoY change in payroll (diff_log) and YoY change in performance (measured by variable "diff_win_pct", which is win_pct of year n - win_pct of year (n-1)).
+
+The correlation between YoY change in payroll (%) and YoY performance gain/loss is `r cor_all`
+
+The scatterplot between log increases in payroll and winning performance, along with the correlation between the two variables, shown below, supports this conclusion.
+
+### Scatterplot: YoY change in payroll vs. YoY change in performance
+
+```{r plot increase & log, warning=FALSE, echo=FALSE, message=FALSE}
+
+ggplot(long_modified, mapping=aes(x=diff_log, y=diff_win_pct))+
+  geom_point()+
+  geom_smooth(method="lm")+
+  ggtitle("YoY change in payroll (log) vs. YoY change in winning percentage")+
+  xlab("YoY change in payroll (log)")+
+  ylab("YoY change in winning percentage")
+  
+```
+
+## 4.4 Comparison
+Which set of factors are better explaining performance? Yearly payroll or yearly increase in payroll? What criterion is being used?
+
+```{r two correlations for summary , include = FALSE}
+cor_1 <- cor(long_modified$payroll, long_modified$win_pct, method = "pearson", use = "complete.obs") #this deals with the missing cases
+cor_2 <- cor(long_modified$diff_log, long_modified$win_pct, method = "pearson", use = "complete.obs")
+```
+
+Yearly payroll is better than explaining performance than yearly increase in payroll.
+The reason is because it has a higher correlation with performance (win_pct):
+
+- correlation between yearly payroll vs. performance: `r cor_1`
+- correlation between yearly increase in payroll vs. performance: `r cor_2`
