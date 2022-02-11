@@ -1,0 +1,469 @@
+---
+title: "Modern Data Mining, HW 2"
+author:
+- Group Member 1
+- Group Member 2
+- Group Member 3
+date: 'Due: 11:59 PM,  Sunday, 02/13'
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width=8, fig.height=4)
+options(scipen = 0, digits = 3)  # controls base R output
+if(!require('pacman')) {
+  install.packages('pacman')
+}
+pacman::p_load(ggplot2, dplyr, tidyverse, gridExtra, ggrepel, plotly, skimr, tidytext, car) 
+# install a package if it does not exist already and put the package in the path (library)
+# dplyr, ggplot2,tidyr
+
+```
+
+
+# Case study 1: Self-seteem 
+
+## 1.1 Data preparation
+
+Load the data. Do a quick EDA to get familiar with the data set. Pay attention to the unit of each variable. Are there any missing values?
+
+``` {r nlsy}
+file_case1 <- "~/Library/Mobile Documents/com~apple~CloudDocs/★Wharton/Spring 2022/STAT701 Modern Data Mining/Homework/My attempts/Homework 2/data/NLSY79.csv"
+nlsy_original <- read.csv(file_case1, header=T, stringsAsFactors = FALSE)
+dim(nlsy_original)
+names(nlsy_original)
+sum(is.na(nlsy_original)) #check missing values
+```
+
+## 1.2 Self esteem evalution
+
+Let's concentrate on Esteem scores evaluated in 87. 
+
+1. Reverse Esteem 1, 2, 4, 6, and 7 so that a higher score corresponds to higher self-esteem. (Hint: if we store the esteem data in `data.esteem`, then `data.esteem[,  c(1, 2, 4, 6, 7)]  <- 5 - data.esteem[,  c(1, 2, 4, 6, 7)]` to reverse the score.)
+
+``` {r reverse esteem score}
+data.esteem <- nlsy_original %>%
+  select(Subject, names(nlsy_original)[27:46])
+
+ctoreverse <- c('Esteem81_1','Esteem81_2', 'Esteem81_4','Esteem81_6','Esteem81_7','Esteem87_1','Esteem87_2','Esteem87_4', 'Esteem87_6','Esteem87_7')
+
+data.esteem.reversed <- data.esteem
+data.esteem.reversed[,ctoreverse] <- 5 - data.esteem.reversed[,ctoreverse]
+
+#separate the datasets for 1981 and 1987
+data.esteem81 <- data.esteem.reversed %>%
+  select(Subject, c(2:11))
+data.esteem87 <- data.esteem.reversed %>%
+  select(Subject, c(12:21))
+```
+
+``` {r esteem reverse check}
+test <- data.esteem + data.esteem.reversed
+test[1:5,ctoreverse] 
+
+#All of the data in the table generated with the code above are 5, so the transformation was done correctly
+```
+
+2. Write a brief summary with necessary plots about the 10 esteem measurements.
+
+```{r summary stat for each esteem data 87, include=FALSE, warning=FALSE}
+#Turn the data into long-form first
+data.esteem.long87 <- data.esteem87 %>%
+  select(c(2:11)) %>%
+  reshape2::melt()
+```
+
+### ANSWER
+Summary:
+
+- The average of each esteem score is close to 3.5, except for those of Esteem 8 and 9, which are closer to 3 as shown in the table and distribution histogram below.
+- The standard deviation of each esteem score is about 0.5, except for those of Esteem 8, 9 and 10, which are closer to 0.7, as shown in the table below.
+
+```{r summary table & plots}
+#Summarize mean & sd of each esteem score
+data.esteem87.summary <- data.esteem.long87 %>%
+  group_by(variable) %>%
+  summarise(mean = mean(value), sd = sd(value))
+
+knitr::kable(data.esteem87.summary)
+
+#Plot for data in 1987
+ggplot(data.esteem.long87, aes(x = variable, y = value))+
+  geom_boxplot()+
+  coord_flip()+ #flip coordinates
+  stat_summary(fun=mean, geom="point", shape=23, size=4)+ #add mean plots
+  ggtitle("Box plot with means of each esteem score")
+```
+```{r distribution of each esteem score}
+
+ggplot(data.esteem.long87, aes(x=value))+
+  geom_histogram(binwidth = 1, color="black", fill="white")+
+  facet_wrap(~ variable, ncol = 5)+
+  ggtitle("Distribution of each esteem score")
+  
+```
+
+
+3. Do esteem scores all positively correlated? Report the pairwise correlation table and write a brief summary.
+
+### ANSWER
+Summary:
+
+- We can see positive correlation among all extreme scores, however, the degree of correlation varies from 0.24 to 0.7 , as detailed in the pairwise correlation table below.
+- Notably, the scores for Esteem 1 (“I am a person of worth”) and Esteem 2 (“I have a number of good qualities”) are strongly correlated, with a correlation coefficient of 0.7.
+
+```{r pairwise esteem 1981}
+cor.all <- data.esteem87 %>%
+  select(c(2:11)) %>%
+  cor()
+cor.all <- round(cor.all, 2)
+knitr::kable(cor.all)
+```
+
+
+4. PCA on 10 esteem measurements. (centered but no scaling)
+
+    a) Report the PC1 and PC2 loadings. Are they unit vectors? Are they orthogonal? 
+
+### ANSWER
+
+The value of PC1 and PC2 can be found in the table below:
+    
+```{r compute 2 PCs for 10 esteem measurements}
+pc87 <- data.esteem87 %>%
+  select(c(2:11)) %>%
+  prcomp(scale=FALSE)
+names(pc87) #check output
+
+pc87.loading <- pc87$rotation
+
+knitr::kable(pc87.loading[,1:2]) #show only PC1 and PC2
+```
+
+
+PC1 and PC2 are orthogonal, due to the nature of how PCs are calculated.
+```{r}
+#all loadings are perpendicular and with unit 1
+colSums((pc87$rotation)^2) 
+```
+
+   b) Are there good interpretations for PC1 and PC2? (If loadings are all negative, take the positive loadings for the ease of interpretation)
+    
+### ANSWER
+
+Interpretation:
+
+- **PC1**: since all 10 loadings are positive are all positive and are roughly around 0.3, we can interpret that PC1 is proportional to the total of all esteem scores A higher PC1 represents a higher total score overall. Although it should be noted that the scores for Esteem 8,9,10 affects the value of PC1 more than others due to their relatively higher loadings.
+
+- **PC2**: since the loadings of Esteem 8,9, and 10 are positive while the loadings of other Esteem scores are negative, roughly speaking, PC2 represents how much the scores for Esteem 8, 9, and 10 are higher compared to other scores. However, since all questions (Esteem 1 to 10) are all asking about similar things, it is difficult to interpret the meaning of PC2.
+
+    
+  c) How is the PC1 score obtained for each subject? Write down the formula.
+
+### ANSWER
+
+PC1 = 0.235(Esteem87_1) + 0.244(Essteem87_2) + 0.279(Esteem87_3) + 0.261(Esteem87_4) + 0.312(Esteem87_5) + 0.313(Esteem87_6) + 0.299(Esteem87_7) + 0.393(Esteem87_8) + 0.398(Esteem87_9) + 0.376(Esteem87_10)
+
+  d) Are PC1 scores and PC2 scores in the data uncorrelated? 
+
+### ANSWER
+
+PC1 and PC2 scores are uncorrelated.
+
+```{r PC1 & PC2 correlation}
+cor87.data <- pc87$x[,1:2]
+round(cor(cor87.data), 4)
+```
+
+  e) Plot PVE (Proportion of Variance Explained) and summarize the plot.
+  
+### ANSWER
+The PVE of PC1 is 1.297, which is higher than the PVE of PC2, which is 0.678.
+
+```{r PVE data}
+PVE <- summary(pc87)$importance[,1:2]
+PVE_df <- data.frame(PC = c('PC1','PC2'), Proportion_of_Variance = c(PVE[1,1],PVE[1,2]), Cumulative_Proportion = c(PVE[3,1],PVE[3,2])
+)
+```  
+
+```{r plot Proportion of Variance}
+PVE_table <- PVE_df[1:2,1:2]
+knitr::kable(PVE_table)
+
+ggplot(data=PVE_df, mapping = aes(x = PC, y = Proportion_of_Variance))+
+  geom_bar(stat="identity")+
+  ggtitle("Proportion of Variance Explained")
+```
+
+  f) Also plot CPVE (Cumulative Proportion of Variance Explained). What proportion of the variance in the data is explained by the first two principal components?
+  
+### ANSWER
+The first two principal components explain 59.3% if the variance in the data.
+
+```{r plot Cumulative Proportion, warning=FALSE}
+CPVE_table <- PVE_df[1:2,c(1,3)]
+knitr::kable(CPVE_table)
+
+plot(summary(pc87)$importance[3, ], pch=16,
+     tlab="Cumulative PEV",
+     xlab="Number of PCs",
+     ylab="",
+     ylim=c(0,1),
+     main="Scree Plot of Cumulative PVE for esteem scores in 1987")
+
+```
+
+  
+  g) PC’s provide us with a low dimensional view of the self-esteem scores. Use a biplot with the first two PC's to display the data.  Give an interpretation of PC1 and PC2 from the plot. (try `ggbiplot` if you could, much prettier!)
+    
+### ANSWER
+The biplot indicates that:
+
+- PC1 loadings have the same signs, although the magnitude varies depending on the esteem score
+- PC2 captures the different between esteeem score 8, 9, 10 and others.
+- Esteem scores 8, 9, and 10 are  correlated, and other esteem scores are correlated among themselves
+
+    
+```{r biplot}    
+
+lim <- c(-.05, .05)
+biplot(pc87, choices=c(1,2),
+xlim=lim,
+ylim=lim)
+abline(h=0, v=0, col="red", lwd=2)
+title("Biplot of the PC's", line = 2)
+
+```    
+    
+5. Apply k-means to cluster subjects on the original esteem scores
+
+    a) Find a reasonable number of clusters using within sum of squared with elbow rules.
+
+### ANSWER
+Using the elbow rule, we decided to use k=2 to have two clusters.
+
+```{r Find number of clusters}    
+pacman::p_load(factoextra)
+fviz_nbclust(data.esteem87[,-1], kmeans, method = "wss")
+    
+```
+    
+    
+    b) Can you summarize common features within each cluster?
+    
+### ANSWER
+From the summary of each group's characteristics, we can see that, compared to group 2, group 1:
+
+- scores higher across all esteem scores
+- is from a family with parents who had more education and higher income
+- has a higher AFQT score
+
+Please refer to the code below regarding our process in conducting K-means clustering and summarizing the data of each group.
+
+```{r cluster analysis}    
+#Conduct cluster analysis (k=2)
+
+e87.kmeans <- kmeans(data.esteem87[,-1], centers = 2, nstart=20)
+esteem87.grouped <- data.esteem87 %>%
+  mutate(group = as.factor(e87.kmeans$cluster))
+
+#join the results with original data (that has other characteristics)
+
+#Modify original dataset by getting rid of all esteem scores and replacing them with our rescaled esteem scores (for 1987 only)
+columns_to_delete <- names(nlsy_original)[27:46] 
+esteem87.grouped.full <- nlsy_original %>%
+  select(-all_of(columns_to_delete))
+esteem87.grouped.full <-
+  left_join(esteem87.grouped.full, esteem87.grouped, by = "Subject")
+
+#check that the tables are joined correctly:
+dim(esteem87.grouped.full)
+
+#check that there are no na values in joined table:
+sum(is.na(esteem87.grouped.full))
+
+#Show the average data for each cluster
+e87.results <- esteem87.grouped.full %>%
+  group_by(group) %>%
+  summarise(Avg_Education05=mean(Education05), Avg_Income87=mean(Income87), Avg_Income05=mean(Income05), Avg_MotherEd=mean(MotherEd), Avg_FatherEd=mean(FatherEd), Avg_FamilyIncome78=mean(FamilyIncome78), Avg_AFQT=mean(AFQT), Avg_Esteem87_1=mean(Esteem87_1), Avg_Esteem87_2=mean(Esteem87_2), Avg_Esteem87_3=mean(Esteem87_3), Avg_Esteem87_4=mean(Esteem87_4), Avg_Esteem87_5=mean(Esteem87_5), Avg_Esteem87_6=mean(Esteem87_6), Avg_Esteem87_7=mean(Esteem87_7), Avg_Esteem87_8=mean(Esteem87_8), Avg_Esteem87_9=mean(Esteem87_9), Avg_Esteem87_10=mean(Esteem87_10))
+
+knitr::kable(t(e87.results))
+
+```
+
+    c) Can you visualize the clusters with somewhat clear boundaries? You may try different pairs of variables and different PC pairs of the esteem scores.
+    
+### ANSWER
+We have found that PC1 and AFQT are able to produce clear boundaries for each cluster.
+PC1 clearly separates cluster 1 from cluster 2, while we can see that the average AFQT for group 2 is higher than group 1's.
+
+We have also left plots with different pairs of variables as reference.
+
+*Reference: We used to code below to prepare the data*
+```{r preparing data for plots}
+
+#add PCs to the data
+PC1 <- pc87$x[,1]
+PC2 <- pc87$x[,2]
+PC1.2.df <- data.frame(PC1, PC2)
+PC1.2.df$Subject = esteem87.grouped.full$Subject
+
+esteem87.grouped.full <- esteem87.grouped.full %>%
+  left_join(PC1.2.df, by="Subject")
+
+#check that the tables are joined correctly:
+dim(esteem87.grouped.full)
+
+#check that there are no na values in joined table:
+sum(is.na(esteem87.grouped.full))
+```
+
+The plots are below:
+```{r plotting clusters with other variables}
+e87.results2 <- esteem87.grouped.full %>%
+  summarise(Avg_AFQT=mean(AFQT), Avg_Income87=mean(Income87), Avg_Education05=mean(Education05), Avg_FamilyIncome78=mean(FamilyIncome78))
+
+#plot with PC1 and AFQT
+ggplot(data = esteem87.grouped.full, mapping = aes(x = AFQT, y = PC1))+
+  geom_point(mapping = aes(color = group))+
+  geom_hline(yintercept = 0)+
+  geom_vline(xintercept = e87.results2$Avg_AFQT)
+
+#plot with PC1 and Income87
+ggplot(data = esteem87.grouped.full, mapping = aes(x = Income87, y = PC1))+
+  geom_point(mapping = aes(color = group))+
+  geom_hline(yintercept = 0)+
+  geom_vline(xintercept = e87.results2$Avg_Income87)
+
+#plot with PC1 and FamilyIncome78
+ggplot(data = esteem87.grouped.full, mapping = aes(x = FamilyIncome78, y = PC1))+
+  geom_point(mapping = aes(color = group))+
+  geom_hline(yintercept = 0)+
+  geom_vline(xintercept = e87.results2$Avg_FamilyIncome78)
+
+#plot with PC1 and Education05
+ggplot(data = esteem87.grouped.full, mapping = aes(x = Education05, y = PC1))+
+  geom_point(mapping = aes(color = group))+
+  geom_hline(yintercept = 0)+
+  geom_vline(xintercept = e87.results2$Avg_Education05)
+
+```
+
+6. We now try to find out what factors are related to self-esteem? PC1 of all the Esteem scores is a good variable to summarize one's esteem scores. We take PC1 as our response variable. 
+    a) Prepare possible factors/variables:
+    
+  - Personal information: gender, education (05, problematic), log(income) in 87, job type in 87, Body mass index as a measure of health (The BMI is defined as the body mass divided by the square of the body height, and is universally expressed in units of kg/m²). Since BMI is measured in 05, this will not be a good practice to be inclueded as possible variables. 
+
+### ANSWER      
+```{r Prep variables 1}
+esteem87.regression.data <- esteem87.grouped.full %>%
+  mutate(log_Income87=log(Income87+2.00000001)) %>% #Since the minimum value of Income87 is -2 for unknown reasons, we will assume that all negative values means zero income, and add 2.00000001 to Income87 when doing log transformation.
+  select(-Weight05, -HeightFeet05, -HeightInch05, -Income87)
+```          
+
+  - Household environment: Imagazine, Inewspaper, Ilibrary, MotherEd, FatherEd, FamilyIncome78. Do set indicators `Imagazine` and `Ilibrary` as factors
+
+###ANSWER
+```{r Prep variables 2}
+#set categorical variables as factors
+esteem87.regression.data <- esteem87.regression.data %>%
+  mutate(Imagazine = as.factor(Imagazine), Inewspaper = as.factor(Inewspaper), Ilibrary = as.factor(Ilibrary))
+
+#remove data not to be used as variables (raw esteem scores, variables measured after 1987, raw test scores)
+esteem87.regression.data <- esteem87.regression.data %>%
+  select(-c(12:32)) %>%
+  select(-Education05, -Job05, -Income05)
+```
+
+  - Use PC1 of SVABS as level of intelligence
+
+###ANSWER
+```{r Prep variables 3a, warning=FALSE}
+
+#We conduct a PCA for SVABS
+pcASVAB <- esteem87.grouped.full %>%
+  select(c(16:26)) %>%
+  prcomp(scale=TRUE)
+
+names(pcASVAB) #check output
+
+pcASVAB.loading <- pcASVAB$rotation
+knitr::kable(pcASVAB.loading[,1]) #check loading of PC1
+```             
+
+We can see from the loadings of PC1 that all loadings have the same sign and have values around 0.3.
+We can interpret that PC1 represents the sum of all scores: higher PC1 represents a higher sum of all scores.
+
+We will next look at the scree plot of cumulative PVE for PCs of ASVAB test scores
+```{r Prep variables 3b, warning=FALSE}
+plot(summary(pcASVAB)$importance[3, ], pch=16,
+     tlab="Cumulative PEV",
+     xlab="Number of PCs",
+     ylab="",
+     ylim=c(0,1),
+     main="Scree Plot of Cumulative PVE for ASVAB test scores in 1981")
+```
+
+We can see from the Scree Plot that PC1 alone accounts for over 60% of the variance in ASVAB test scores.
+
+Next, we will use the code below to add PC1 of ASVAB test scores to the data for analysis
+```{r Prep variables 3c}
+
+#add PCs to esteem87.regression.data
+PC1ASVAB.df <- data.frame(pcASVAB$x[,1])
+PC1ASVAB.df$Subject = esteem87.grouped.full$Subject
+esteem87.regression.data <- esteem87.regression.data %>%
+  left_join(PC1ASVAB.df, by="Subject")
+
+#check that the tables are joined correctly:
+dim(esteem87.regression.data)
+
+#check that there are no na values in joined table:
+sum(is.na(esteem87.regression.data))
+
+#rename the PCs to avoid confusion
+esteem87.regression.data <- esteem87.regression.data %>%
+  rename(PC1_esteem = PC1) %>%
+  rename(PC2_esteem = PC2) %>%
+  rename(PC1_ASVAB = pcASVAB.x...1.)
+
+names(esteem87.regression.data)
+```
+
+  b)   Run a few regression models between PC1 of all the esteem scores and factors listed in a). Find a final best model with your own criterion.
+
+#CONTINUE HERE
+
+### ANSWER
+We ran a few model - these are the criteria for selecting our model:
+
+- the model must pass F-test at 95% confidence interval, and the explanatory variables must pass the  t test at 95% confidence interval
+- must uphold the three assumptions of OLS (linearity, normality, homoscedasticity)
+- small prediction errors (RSE)
+
+After running a few regression models, we think that this is the best model:
+
+
+used usual method >> arrived at model 5
+>> weird residuals for those with high PC2 >> create categorical (1-1.5, 1.5-2)
+
+
+  - How did you land this model? Run a model diagnosis to see if the linear model assumptions are reasonably met. 
+  
+  
+###ANSWER
+
+**How we landed this model:**
+
+
+
+**Model diagnosis**
+
+
+  Write a summary of your findings. In particular, explain what and how the variables in the model affect one's self-esteem. 
+       
+###ANSWER
+
+
