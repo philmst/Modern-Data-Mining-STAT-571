@@ -1,0 +1,188 @@
+---
+title: "Modern Data Mining, HW 3"
+author:
+- Group Member 1
+- Group Member 2
+- Group Member 3
+date: 'Due: 11:59Pm,  2/27, 2022'
+output:
+  pdf_document:
+    number_sections: yes
+    toc: yes
+    toc_depth: '4'
+  html_document:
+    code_folding: hide
+    highlight: haddock
+    number_sections: yes
+    theme: lumen
+    toc: yes
+    toc_depth: 4
+    toc_float: yes
+  word_document:
+    toc: yes
+    toc_depth: '4'
+urlcolor: blue
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, fig.width=8, fig.height=4)
+options(scipen = 0, digits = 3)  # controls base R output
+# check if you have ISLR package, if not, install it
+if(!require('pacman')) {install.packages('pacman')}
+pacman::p_load(ISLR, dplyr, ggplot2,  leaps, car, tidyverse, GGally, reshape2, skimr, stargazer)
+
+
+
+
+# add the packages needed
+```
+
+
+\pagebreak
+
+# Overview
+
+Multiple regression is one of the most popular methods used in statistics as well as in machine learning. We use linear models as a working model for its simplicity and interpretability. It is important that we use domain knowledge as much as we could to determine the form of the response as well as the function format for the factors. Then, when we have many possible features to be included in the working model it is inevitable that we need to choose a best possible model with a sensible criterion. `Cp`, `BIC` and regularizations such as LASSO are introduced. Be aware that if a model selection is done formally or informally, the inferences obtained with the final `lm()` fit may not be valid. Some adjustment will be needed. This last step is beyond the scope of this class. Check the current research line that Linda and collaborators are working on. 
+
+This homework consists of two parts: the first one is an excercise (you will feel it being a toy example after the covid case study) to get familiar with model selection skills such as, `Cp` and `BIC`. The main job is a rather involved case study about devastating covid19 pandemic.  Please read through the case study first. It is time that group members work together to run a real project. This project is for sure a great one listed in your CV. 
+
+For covid case study, the major time and effort would be needed in EDA portion.
+
+## Objectives
+
+- Model building process
+
+- Methods
+    - Model selection
+        + All subsets
+        + Forward/Backward
+    - Regularization
+        + LASSO (L1 penalty)
+        + Ridge (L2 penalty)
+        + Elastic net
+- Understand the criteria 
+    - `Cp`
+    - Testing Errors
+    - `BIC` 
+    - `K fold Cross Validation`
+    - `LASSO` 
+- Packages
+    - `lm()`, `Anova`
+    - `regsubsets()`
+    - `glmnet()` & `cv.glmnet()`
+
+# Review materials
+
+- Study lecture: Model selection
+- Study lecture: Regularization
+- Study lecture: Multiple regression
+
+Review the code and concepts covered during lectures: multiple regression, model selection and penalized regression through elastic net. 
+
+# Case study 1:  `ISLR::Auto` data
+
+This will be the last part of the Auto data from ISLR. The original data contains 408 observations about cars. It has some similarity as the Cars data that we use in our lectures. To get the data, first install the package `ISLR`. The data set `Auto` should be loaded automatically. We use this case to go through methods learned so far. 
+
+Final modelling question: We want to explore the effects of each feature as best as possible. 
+
+1) Preparing variables: 
+
+a) You may explore the possibility of variable transformations. We normally do not suggest to transform $x$ for the purpose of interpretation. You may consider to transform $y$ to either correct the violation of the linear model assumptions or if you feel a transformation of $y$ makes more sense from some theory. In this case we suggest you to look into `GPM=1/MPG`. Compare residual plots of MPG or GPM as responses and see which one might yield a more satisfactory patterns. 
+```{r}
+library(ISLR)
+```
+
+
+```{r}
+#Regression without variable transformation
+names(Auto)
+model1 <- lm(mpg ~ cylinders + displacement + horsepower + weight + year + origin, data = Auto)
+summary(model1)
+plot(model1$residuals)
+plot(model1)
+```
+
+
+
+In addition, can you provide some background knowledge to support the notion: it makes more sense to model `GPM`?  
+
+```{r}
+#Regression with variable transformation
+Auto$gpm <- 1/Auto$mpg
+Auto$log.gpm <- log(1/Auto$mpg)
+model2 <- lm(log.gpm ~ cylinders + displacement + horsepower + weight + year + origin, data = Auto)
+summary(model2)
+plot(model2$residuals)
+plot(model2)
+```
+
+
+The reason we would want to model gallons per mile and not miles per gallon is because there is a fallacy in thinking that each increase in fuel efficiency (miles per gallon) will have the same effect on savings. A car that has 10 mpg will save 33% by increasing to 11 mpg. However a car with 11 mpg will only increase savings by 16.7% if its mpg is increase to 12 mpg.
+
+b) You may also explore by adding interactions and higher order terms. The model(s) should be as *parsimonious* (simple) as possible, unless the gain in accuracy is significant from your point of view. 
+
+```{r}
+#Regression with variable transformation
+model3 <- lm(log.gpm ~ cylinders + displacement + horsepower * weight + year + factor(origin), data = Auto)
+plot(model3$residuals)
+summary(model3)
+plot(model3)
+```
+
+
+c) Use Mallow's $C_p$ or BIC to select the model.
+
+```{r}
+names(Auto)
+newAuto <- Auto %>%
+  select(c("cylinders", "displacement","horsepower",   "weight","acceleration", "year", "origin",        "log.gpm"))
+fit.exh <- regsubsets(log.gpm ~.^2, newAuto , nvmax=20, method="exh", force.in = c(factor("displacement")))
+
+f.e <- summary(fit.exh)
+plot(f.e$cp, xlab="Number of predictors", 
+     ylab="Cp", col="red", pch=19)
+```
+
+```{r}
+coef(fit.exh,10) 
+model4 <- lm(log.gpm ~ factor(cylinders) + displacement + weight + acceleration + origin + cylinders*acceleration + displacement*weight + displacement*origin + horsepower*acceleration + acceleration*year + acceleration*origin,
+             data = newAuto)
+Anova(model4)
+
+```
+
+
+```{r}
+model5 <- lm(log.gpm ~ factor(cylinders)  + weight +  origin + weight +  horsepower*acceleration + year,
+             data = newAuto)
+summary(model5)
+plot(model5)
+```
+Model 5 is the final model that I pruned down from the model using variables suggested by regsubsets and looking at cp values. The interaction between horsepower was the only interactions suggested by regsubsets that, when taken out, significantly affects the R^2 of the model. Therefore it was the only interaction that I kept in. When making a prediction I need to exponentiate and divide 1 by the result.
+
+2) Describe the final model and its accuracy. Include diagnostic plots with particular focus on the model residuals.
+
+
+The coefficient for weight is 1.70e-04, which means that each additional unit of weight added to the car increase the log gpm by 1.70e-04. A car with 4 cylinders will have 2.74e-01 less log gpm on average that a car with 3 cylinders. The coefficients for the rest of the number of cylinders in the dataset are as follows: 5 cylinders: -2.97e-01, 6 cylinders: -1.82e-01, 8 cylinders: -1.94e-01. The interpretations are the same as four cylinders but with their respective coefficients. Each subsequent year that a car is produced its log gpm will increase by -2.91e-02. The interpretation for origin does not mean anything because in reality origin is a factor variable and we treated it as a numerical variable. Each unit increase in horsepower will increase the log gpm by -1.98e-03. Each unit of acceleration increase for a car will increase it's log gpm by -2.09e-02. All of the increases mentioned are on the average. We have no way of interpreting the interaction variable for horsepower and acceleration.
+
+  * Summarize the effects found.
+  * Predict the `mpg` of a car that is: built in 1983, in the US, red, 180 inches long, 8 cylinders, 350 displacement, 260 as horsepower, and weighs 4,000 pounds. Give a 95% CI.
+  * Any suggestions as to how to improve the quality of the study?
+
+
+```{r}
+newcar <- Auto[1,]
+newcar[1:12] <- c(NA,8,350,260,4000,15.5,83,1,NA, NA, NA, NA)
+pred <- predict(model5, newcar)
+c(1/exp(pred) - 2*(1/exp(.108)),1/exp(pred) + 2*(1/exp(.108))) # 95% confidence interval
+
+```
+
+
+One piece of data that would improve the quality of the study would be whether or not the car has a turbocharger, becuase turbochargers have a noticeable effect on the mpg of a car. Another valuable piece of data would be the type of engine (v, inline). The shape of the engine combined with whether or not the engine has a turbocharger have a big effect on the fuel efficiency of a car.
+
+# Case study 2: COVID
+
+See covid_case_study.Rmd.
+
