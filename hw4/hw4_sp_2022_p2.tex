@@ -1,0 +1,126 @@
+\documentclass{article}
+\usepackage[a4paper, total={6in, 8in}]{geometry}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{lipsum}
+\usepackage{mwe}
+
+\graphicspath{ {./} }
+
+\begin{document}
+
+
+\clearpage
+\vspace*{\fill}
+
+\begin{minipage}{.6\textwidth}
+\textbf{Minimizing Diabetic Patients Readmission} \newline
+
+\medskip
+Brandon Kleinman\newline
+Ben Sra Chongbanyatcharoen\newline
+Philip Situmorang\newline
+\end{minipage}
+
+\vfill 
+\clearpage
+
+\newpage
+\tableofcontents
+\newpage
+\section{Executive Summary}
+A diabetic patient readmission is costly: both to the patient and to the healthcare provider. To the patient the cost comes in the form of, among others, additional fees to pay, time spent going in and out of hospital, and the emotional and physical toll of the readmission process. To the provider, such cost comes in the form of additional time and resources needed to readmit the patient. To reduce these costs, hospitals need to minimize the release of patients which will need a quick readmission. If providers could identify patients who have higher chances of needing a quick readmission, such patients can be prevented from leaving the hospitals and further medical actions can be taken to reduce the chances of a readmission. By doing so, we minimize costs both to the patient and the provider.\newline
+
+In this article we will analyze and identify important factors that drive readmission among diabetic patients, and we will propose a model which will help providers predict whether or not a patient will be readmitted within 30 days of release. To do so, we rely on data provided by Virginia Commonwealth University's Center for Clinical and Translational Research. The dataset contains information on diabetes patients across 130 U.S. hospitals from 1999 to 2008,  with over 100,000 unique hospital admissions and 70,000 unique patients. In the following sections, we will explore the insights this dataset provides and propose a model which can be used to predict the readmission of future patients. \newline
+
+%This section should be accessible by people with very little statistical background (avoid using technical words and no direct R output is allowed)
+%Give a background of the study. You may check the original website or other sources to fill in some details, such as to why the questions we address here are important. 
+% A quick summary about the data.
+%Methods used and the main findings.
+% You may use clearly labelled and explained visualizations.
+% Issues, concerns, limitations of the conclusions. This is an especially important section to be honest in - we might be Penn students, but we are statisticians today.
+
+\section{Exploratory Data Analaysis}
+\section{Model Methodology and Selection}
+
+\subsection{Important Factors}
+To determine which variables are important in predicting the readmission of a patient within thirty days, we use a logistic regression function with lasso regularization. Tthe function glmnet() in R directly enables us to find such variables. The function fits models and cross-validates them using the available dataset and provides several options from which we can select our final model. \newline
+
+In this research we selected two final candidates for our model: one uses the criteria "min" and the other "1se"  in selecting the lambda parameter of the final model. When evaluated further, our analysis shows that the "1se" model is estimated to have higher accuracy (see Appendix I). We identify the "important factors" of quick readmission solely by looking at which variables were included in building this "best fit" model. \newline
+
+Our analyses shows that the following variables are most significant in predicting the quick readmission of a patient:
+
+\begin{itemize}
+ 
+\item `time\_in\_hospital`: the patient’s length of stay in the hospital (in days)
+\item `num\_medications`: No. of distinct medications prescribed in the current encounter
+\item `num\_emergency`: number of emergency visits by the patient in the year prior to the current encounter
+\item `num\_inpatient`: number of inpatient visits by the patient in the year prior to the current encounter
+\item `number\_diagnoses`: Total no. of diagnosis entered for the patient
+\item `insulin`: the patient's insulin levels
+\item `diabetesMed`: indicates if any diabetes medication was prescribed 
+\item `disch\_disp\_modified`: indicates where the patient was discharged to after treatment.
+\item `age\_mod`: indicates the patient's age
+\item `diag1\_mod`: the patient's primary diagnosis
+\item `diag3\_mod`: the patient's tertiary diagnosis
+\end{itemize}
+
+Time in hospital, number of medications, number of emergency visits, number of inpatient visits, and number of diagnosis have positive coefficients, which means that the higher they are the more likely that a patient will be readmitted within thirty days. Being older and having a diabetes medication prescription also increases the likelihood of readmission. The model shows that having certain primary and tertiary diagnoses increases the likelihood wheras other diagnoses decreases the likelihood. 
+
+\subsection{Model}
+
+To arrive at a final model to predict a patient's 30-day readmission we simply fit for a logistic regression function with the variables selected in the previous section. We can immediately use this fit to predict future patient's thirty day readmission in the future. The fit itself, however, does not provide such prediction but rather the probability of readmission. In order to arrive at a prediction we must establish a probability threshold. If the probability of readmission falls above this threshold, we predict the patient to be readmitted within the next 30 days, and vice versa. \newline
+
+We seek the threshold which minimizes the cost of misclassifying a future patient. To find such threshold, we applied a method known as the bayes rule. Using this rule, and considering the estimation that mislabeling a readmission costs twice as much as mislabeling a non-readmission, we determined that the optimal probability threshold is 0.66 (see Appendix II). That is, if the model estimates that a future patient has a probability of higher than 0.66, we predict that the patient will be readmitted within 30 days of release. Conversely, a patient with probability less than the threshold will be not be classified for a thirty day readmission. \newline
+
+We test this threshold against our fitted model by calculating the sum of weighted misclassification errors at each probability threshold (see appendix III). We see that applying bayes rule to arrive at a 0.66 threshold probability provides us with an optimal threshold which minimizes cost of misclassifying a patient.
+
+\section{Conclusion}
+
+Evaluating a patient using our model prior to their release may reduce the long-term cost of early readmission. Providers can quickly predict whether a thirty day readmission will occur and release the patient based upon this prediction. Furthermore, providers may take actions to minimize the likelihood of readmission by assessing which of the important factors mentioned previously contribute most to such likelihood with regards to a certain patient. 
+
+\section{Appendix}
+\subsection{Appendix I - Model Selection}
+
+
+\begin{figure}[h]
+\centering
+\includegraphics[scale = 0.5]{1}
+\caption{lambda 1se model}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[scale = 0.5]{2}
+\caption{lambda min model}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[scale = 0.5]{3}
+\caption{We see that 1se model has higher accuracy as indicated by higher AUC}
+\end{figure}
+
+\newpage
+
+\subsection{Appendix II - Bayes Rule}
+
+Mislabeling a readmission means false positive $a_{0,1}=L(Y=0, \hat Y=1)$
+Mislabeling a non-readmission means false negative $a_{1,0}=L(Y=1, \hat Y=0)$
+The cost of mislabeling a readmission is **twice** of that mislabeling a non-readmission
+Which means $a_{0,1}=2a_{1,0}$
+
+$$P(Y=1 \vert X) > \frac{\frac{a_{0,1}}{a_{1,0}}}{1 + \frac{a_{0,1}}{a_{1,0}}}$$
+$$P(Y=1 \vert X) > \frac{\frac{2}{1}}{1 + \frac{2}{1}}$$
+$$P(Y=1 \vert X) > \frac{2}{3}$$
+
+\subsection{Appendix III - Weighted Misclassification Error}
+
+\begin{figure}[h]
+\centering
+\includegraphics[scale = 0.5]{4}
+\caption{Weighted misclassification error is close to being lowest at p=2/3 or .66}
+\end{figure}
+
+
+\end{document}
