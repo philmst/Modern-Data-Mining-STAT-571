@@ -47,7 +47,16 @@ sum(is.na(readmission))
 glimpse(readmission)
 #imputing the null values isnt worth the trouble becuase we have so much data
 ```
+```{r}
+#number of patients
+length(unique(diabetes$patient_nbr))
+#number of encounters
+nrow(diabetes)
+```
 
+```{r}
+summary(readmission)
+```
 
 
 ```{r}
