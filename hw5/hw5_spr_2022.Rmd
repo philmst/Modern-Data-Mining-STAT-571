@@ -1,0 +1,573 @@
+---
+title: "Modern Data Mining - HW 5"
+author:
+- Group Member 1
+- Group Member 2
+- Group Member 3
+date: 'Due: 11:59Pm,  4/10, 2022'
+output:
+  html_document:
+    code_folding: show
+    highlight: haddock
+    theme: lumen
+    toc: yes
+    toc_depth: 4
+    toc_float: yes
+  pdf_document:
+    toc: yes
+    toc_depth: '4'
+  word_document:
+    toc: yes
+    toc_depth: '4'
+urlcolor: blue  
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.height=4, fig.width=6, warning = F)
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(randomForest, tree, ISLR, rpart, rattle, pROC, partykit, ggplot2, glmnet, leaps, dplyr, keras, neuralnet, imager, ranger, tidyverse, tidytext, lubridate, car, tm,  RColorBrewer, wordcloud, wordcloud2)
+```
+
+
+
+
+# Overview
+
+For the purpose of predictions, a model free approach could be beneficial. A binary decision tree is the simplest, still interpretable and often provides insightful information between predictors and responses. To improve the predictive power we would like to aggregate many equations, especially uncorrelated ones. One clever way to have many free samples is to take bootstrap samples. For each bootstrap sample we  build a random tree by taking a randomly chosen number of variables to be split at each node. We then take average of all the random bootstrap trees to have our final prediction equation. This is RandomForest. 
+
+Ensemble method can be applied broadly: simply take average or weighted average of many different equations. This may beat any single equation in your hand.
+
+
+All the methods covered can handle both continuous responses as well as categorical response with multiple levels (not limited to binary response.)
+
+
+## Objectives
+
+
+- Understand trees
+    + single tree/displaying/pruning a tree
+    + RandomForest
+    + Ensemble idea
+
+- R functions/Packages
+    + `tree`, `RandomForest`, `ranger`
+    
+- Json data format
+
+- text mining
+    + bag of words
+  
+
+Data needed:
+
++ `IQ.Full.csv`
++ `yelp_review_20k.json`
+
+# Problem 0: Lectures
+
+Please study all three lectures. Understand the main elements in each lecture and be able to run and compile the lectures
+
++ textmining
++ trees
++ boosting
+
+    
+# Problem 2: Yelp challenge 2019
+
+**Note:** This problem is rather involved. It covers essentially all the main materials we have done so far in this semester. It could be thought as a guideline for your final project if you want when appropriate. 
+
+Yelp has made their data available to public and launched Yelp challenge. [More information](https://www.yelp.com/dataset/). It is unlikely we will win the $5,000 prize posted but we get to use their data for free. We have done a detailed analysis in our lecture. This exercise is designed for you to get hands on the whole process. 
+
+For this case study, we downloaded the [data](https://www.yelp.com/dataset/download) and took a 20k subset from **review.json**. *json* is another format for data. It is flexible and commonly-used for websites. Each item/subject/sample is contained in a brace *{}*. Data is stored as **key-value** pairs inside the brace. *Key* is the counterpart of column name in *csv* and *value* is the content/data. Both *key* and *value* are quoted. Each pair is separated by a comma. The following is an example of one item/subject/sample.
+
+```{json}
+{
+  "key1": "value1",
+  "key2": "value2"
+}
+```
+
+
+**Data needed:** yelp_review_20k.json available in Canvas.
+
+**yelp_review_20k.json** contains full review text data including the user_id that wrote the review and the business_id the review is written for. Here's an example of one review.
+
+```{json}
+{
+    // string, 22 character unique review id
+    "review_id": "zdSx_SD6obEhz9VrW9uAWA",
+
+    // string, 22 character unique user id, maps to the user in user.json
+    "user_id": "Ha3iJu77CxlrFm-vQRs_8g",
+
+    // string, 22 character business id, maps to business in business.json
+    "business_id": "tnhfDv5Il8EaGSXZGiuQGg",
+
+    // integer, star rating
+    "stars": 4,
+
+    // string, date formatted YYYY-MM-DD
+    "date": "2016-03-09",
+
+    // string, the review itself
+    "text": "Great place to hang out after work: the prices are decent, and the ambience is fun. It's a bit loud, but very lively. The staff is friendly, and the food is good. They have a good selection of drinks.",
+
+    // integer, number of useful votes received
+    "useful": 0,
+
+    // integer, number of funny votes received
+    "funny": 0,
+
+    // integer, number of cool votes received
+    "cool": 0
+}
+```
+
+## Goal of the study
+
+The goals are 
+
+1) Try to identify important words associated with positive ratings and negative ratings. Collectively we have a sentiment analysis.  
+
+2) To predict ratings using different methods. 
+
+## 1. JSON data and preprocessing data
+
+i. Load *json* data
+
+The *json* data provided is formatted as newline delimited JSON (ndjson). It is relatively new and useful for streaming.
+```{json}
+{
+  "key1": "value1",
+  "key2": "value2"
+}
+{
+  "key1": "value1",
+  "key2": "value2"
+}
+```
+
+The traditional JSON format is as follows.
+```{json}
+[{
+  "key1": "value1",
+  "key2": "value2"
+},
+{
+  "key1": "value1",
+  "key2": "value2"
+}]
+```
+
+
+We use `stream_in()` in the `jsonlite` package to load the JSON data (of ndjson format) as `data.frame`. (For the traditional JSON file, use `fromJSON()` function.)
+
+```{r}
+pacman::p_load(jsonlite)
+yelp_data <- jsonlite::stream_in(file("yelp_review_20k.json"), verbose = F)
+#str(yelp_data)  
+
+# different JSON format
+# tmp_json <- toJSON(yelp_data[1:10,])
+# fromJSON(tmp_json)
+```
+
+**Write a brief summary about the data:**
+
+a) Which time period were the reviews collected in this data?
+
+**Answer:** The reviews were collected from 2004-10-19 to 2018-10-04.
+
+```{r}
+yelp_data <- yelp_data %>% mutate(year = year(date)) %>% mutate(month = month(date)) %>% mutate (day = day(date)) %>% mutate(weekday = wday(date, label=TRUE, abbr=FALSE)) %>% mutate(fMonth = as.factor(month)) %>% mutate(fDay = as.factor(day))
+```
+
+```{r}
+min(yelp_data$date)
+max(yelp_data$date)
+```
+
+b) Are ratings (with 5 levels) related to month of the year or days of the week? Only address this through EDA please. 
+
+**Discuss:** No, partial f-test below shows that, controlling for year, both month of the year and days of the week are not significant at 0.05 level in determining the number of stars a review has.
+
+```{r}
+fit.eda.1 <- lm(stars ~ year, data = yelp_data)
+fit.eda.2 <- lm(stars ~ year + fMonth, data = yelp_data)
+anova(fit.eda.1, fit.eda.2)
+```
+
+```{r}
+fit.eda.3 <- lm(stars ~ year + weekday, data = yelp_data)
+anova(fit.eda.1, fit.eda.3)
+```
+
+ii. Document term matrix (dtm)
+ 
+ Extract document term matrix for texts to keep words appearing at least .5% of the time among all 20000 documents. Go through the similar process of cleansing as we did in the lecture. 
+
+```{r}
+data.text <- yelp_data$text
+mycorpus1 <- VCorpus(VectorSource(data.text))
+```
+
+```{r}
+# Converts all words to lowercase
+mycorpus_clean <- tm_map(mycorpus1, content_transformer(tolower))
+
+# Removes common English stopwords (e.g. "with", "i")
+mycorpus_clean <- tm_map(mycorpus_clean, removeWords, stopwords("english"))
+
+# Removes any punctuation
+# NOTE: This step may not be appropriate if you want to account for differences
+#       on semantics depending on which sentence a word belongs to if you end up
+#       using n-grams or k-skip-n-grams.
+#       Instead, periods (or semicolons, etc.) can be replaced with a unique
+#       token (e.g. "[PERIOD]") that retains this semantic meaning.
+mycorpus_clean <- tm_map(mycorpus_clean, removePunctuation)
+
+# Removes numbers
+mycorpus_clean <- tm_map(mycorpus_clean, removeNumbers)
+
+# Stem words
+mycorpus_clean <- tm_map(mycorpus_clean, stemDocument, lazy = TRUE) 
+```
+
+```{r}
+dtm1 <- DocumentTermMatrix(mycorpus_clean)
+```
+
+```{r}
+threshold <- .005*length(mycorpus_clean)   # .5% of the total documents = .005 of the total documents
+words.1 <- findFreqTerms(dtm1, lowfreq=threshold) 
+dtm2<- DocumentTermMatrix(mycorpus_clean, control = list(dictionary = words.1))
+dim(dtm2)
+```
+a) Briefly explain what does this matrix record? What is the cell number at row 100 and column 405? What does it represent?
+
+**Answer:** This matrix records the frequency of each selected word at each yelp review review. The cell number at row 100 and column 405 is 0. The 0 represents the number of times the word 'driver' appears in review associated with row 100 (driver is the word associated with column 405).
+
+```{r}
+inspect(dtm2[100,405])
+```
+
+
+b) What is the sparsity of the dtm obtained here? What does that mean?
+
+**Answer:** Inspect(dtm2) shows a 98% sparsity, which means 98% of the cells of the dataframe/ elements of the matrix has '0' as value.
+
+```{r}
+inspect(dtm2)
+```
+
+iii. Set the stars as a two category response variable called rating to be “1” = 5,4 and “0”= 1,2,3. Combine the variable rating with the dtm as a data frame called data2. 
+
+```{r}
+yelp_data <- yelp_data %>% mutate(rating = ifelse(stars >3, 1, 0))
+```
+
+```{r}
+rating <- yelp_data$rating
+data2 <- cbind(dtm2, rating)
+data2 <- data.frame(as.matrix(data2))  
+data2 <- data2 %>% rename(rating = V1462)
+
+#data2[,1461:1462]
+```
+
+## Analysis
+
+Get a training data with 13000 reviews and the 5000 reserved as the testing data. Keep the rest (2000) as our validation data set. 
+
+```{r}
+set.seed(1) 
+n <- nrow(data2)
+train.index <- sample(n, 13000)
+data2.train <- data2[train.index,] 
+data2.leftover <- data2[-train.index,]
+
+dim(data2.train)
+dim(data2.leftover)
+```
+```{r}
+set.seed(1)
+n.leftover <- nrow(data2.leftover)
+test.index <- sample(n.leftover, 5000)
+
+data2.test <- data2.leftover[test.index,] 
+data2.validate <- data2.leftover[-test.index,]
+
+dim(data2.test)
+dim(data2.validate)
+```
+
+## 2. LASSO
+
+i. Use the training data to get Lasso fit. Choose lambda.1se. Keep the result here.
+```{r}
+y <- data2.train$rating
+#data2.train$rating
+X1 <- sparse.model.matrix(rating~., data=data2.train)[, -1]
+
+set.seed(1)
+result.lasso <- cv.glmnet(X1, y, alpha=1, family="binomial")
+plot(result.lasso)
+```
+```{r}
+coef.1se <- coef(result.lasso, s="lambda.1se")  
+coef.1se <- coef.1se[which(coef.1se !=0),] 
+lasso.words <- rownames(as.matrix(coef.1se))[-1]
+summary(lasso.words)
+```
+
+ii. Feed the output from Lasso above, get a logistic regression. 
+	
+a) Pull out all the positive coefficients and the corresponding words. Rank the coefficients in a decreasing order. Report the leading 2 words and the coefficients. Describe briefly the interpretation for those two coefficients. 
+
+**Answer:** The two leading words are 'bomb' and 'cheesi', with coefficients 2.60 and 2.37 respectively. The positive coefficients indicate that having these two words in a review makes it more likely that the review is a positive one. 
+
+```{r}
+sel_cols <- c("rating", lasso.words)
+
+data_sub <- data2.train %>% select(all_of(sel_cols))
+result.glm <- glm(rating~., family=binomial, data_sub)
+```
+
+```{r}
+result.glm.coef <- coef(result.glm)
+hist(result.glm.coef)
+```
+
+```{r}
+coef_df <- data.frame(result.glm.coef) 
+coef_df <- coef_df %>% arrange(desc(result.glm.coef)) 
+coef_df <- coef_df %>% mutate(rank = row_number())
+coef_df
+```
+b) Make a word cloud with the top 100 positive words according to their coefficients. Interpret the cloud briefly.
+
+```{r}
+good.glm <- result.glm.coef[which(result.glm.coef > 0)]
+good.glm <- good.glm[-1]  # took intercept out
+names(good.glm)[1:20]  # which words are positively associated with good ratings
+
+good.fre <- sort(good.glm, decreasing = TRUE) # sort the coef's
+round(good.fre, 4)[1:20] # leading 20 positive words, amazing!
+length(good.fre)
+
+# hist(as.matrix(good.fre), breaks=30, col="red") 
+good.word <- names(good.fre)  
+
+#length(good.word)
+```
+
+```{r}
+cor.special <- brewer.pal(8,"Dark2")  
+wordcloud(good.word[1:100], good.fre[1:100], colors=cor.special, ordered.colors=F)
+```
+
+c) Repeat i) and ii) for the bag of negative words.
+
+
+```{r}
+bad.glm <- result.glm.coef[which(result.glm.coef < 0)]
+cor.special <- brewer.pal(6,"Dark2")
+bad.fre <- sort(-bad.glm, decreasing = TRUE)
+```
+
+```{r}
+bad.word <- names(bad.fre)
+wordcloud(bad.word[1:100], bad.fre[1:100],color=cor.special, ordered.colors=F, min.freq = 100)
+```
+d) Summarize the findings. 
+
+**Answer:** Some words are strongly associated with positive reviews whereas others, negative reviews. The negative words seem to indicate that a negative experience is a strong driver for a person to write a review - words such as "horrible", "worst", and "disgust" are expressive of the writer's emotions. 
+
+Overall, the final list of positive and negative coefficient words makes sense. The words with positive coefficient are generally words with positive connotation such as "bomb", "gem", or "awesome" whereas words with negative coefficient are generally words with negative connotation such as "unprofessional", "horrible", "worst", and "disgust."
+
+iii. Using majority votes find the testing errors
+
+i) From Lasso fit 
+
+```{r}
+predict.lasso <- predict(result.lasso, as.matrix(data2.test[, -1]), type = "class", s="lambda.1se")
+  # output majority vote labels
+
+# LASSO testing errors
+mean(data2.test$rating != predict.lasso)  
+```
+```{r}
+predict.lasso.p <- predict(result.lasso, as.matrix(data2.test[, -1]), type = "response", s="lambda.1se")
+
+pROC::roc(data2.test$rating, predict.lasso.p, plot=TRUE)
+```
+
+ii) From logistic regression 
+
+```{r}
+predict.glm <- predict(result.glm, data2.test, type = "response")
+
+# Majority vote
+class.glm <- ifelse(predict.glm > .5, "1", "0")
+
+testerror.glm <- mean(data2.test$rating != class.glm)
+testerror.glm
+```
+
+
+iii) Which one is smaller?
+
+**Answer:** Logistic regression is smaller.
+
+## 3. Random Forest  
+
+i. Briefly summarize the method of Random Forest
+
+**Answer:** In Random Forest we first take sets of bootstrap samples. We then use each set of samples to build a decision tree - one tree per set of bootstrap samples. Each tree is limited to be built from a subset of the original predictors, and the number of predictors in the subset is predetermined through a parameter 'mtry.' We then 'bag' the trees by taking the average of the predictions of all the trees.
+
+ii. Now train the data using the training data set by RF. Get the testing error of majority vote. Also explain how you tune the tuning parameters (`mtry` and `ntree`). 
+
+**Answer:** We first fit a random forest model with 10 mtry's and 300 ntrees. From the initial plot we see that 100 trees is a reasonable point to start, as there isn't much difference in errors between 200 trees and 100 trees. 
+
+We then tune the mtry, seeing the errors at different mtry's by fiting a random forest model using the ranger package and collecting the errors based on 100 ntrees. We see in the plot that testing errors seem to flatten between 40 and 50 mtry's so we select 45 as the number of mtrys.
+
+The final set of hyperparameters is (ntree= 100, mtry=45). Using these and majority vote criteria, final testing error equals 0.1544.
+
+```{r}
+set.seed(1)
+fit.rf <- randomForest(rating~., data2.train, mtry=10, ntree=300)
+plot(fit.rf, col="red", pch=16, type="p", main="default plot, ")
+```
+```{r}
+rf.error.p <- 1:50
+for (p in 1:50) 
+{
+  fit.rf.ranger.p <- ranger::ranger(rating~., data2.train, num.trees = 100, mtry = p, importance="impurity")
+  rf.error.p[p] <- fit.rf.ranger.p$prediction.error  
+}
+rf.error.p   
+
+plot(1:50, rf.error.p, pch=50,
+     main = "Testing errors of mtry with 100 trees",
+     xlab="mtry",
+     ylab="OOB mse of mtry")
+lines(1:50, rf.error.p)
+```
+
+```{r}
+set.seed(1)
+fit.rf.ranger <- ranger::ranger(rating~., data2.train, num.trees = 100, mtry = 45, importance="impurity")
+fit.rf.ranger$prediction.error
+imp <- importance(fit.rf.ranger)
+imp[order(imp, decreasing = T)][1:20]
+```
+
+```{r}
+predict.rf <- predict(fit.rf.ranger, data=data2.test, type="response")  
+class.rf <- data.frame(predict.rf$predictions) 
+
+# majority vote
+class.rf <- class.rf %>% mutate(prediction = ifelse(predict.rf.predictions > .5, "1", "0"))
+mean(data2.test$rating != class.rf$prediction)
+```
+
+
+## 4. Boosting 
+
+To be determined. 
+
+
+## 5.  PCA first
+
+i. Perform PCA (better to do sparse PCA) for the input matrix first. Decide how many PC's you may want to take and why.
+
+**Answer:** We take 750 PC's as it explains roughly 75% of the variance of the original dataset. 
+
+```{r}
+pc.train <- prcomp(data2.train[, -c(1)], scale=TRUE)
+pc.train.scores <- pc.train$x
+
+```
+
+```{r}
+plot(summary(pc.train)$importance[3, ], pch=16,
+  ylab="Cumulative PVE",
+  xlab="Number of PC's",
+  main="Scree Plot of Cumulative PVE")
+
+#summary(pc.train)$importance[3, 750]
+#summary(pc.train)
+```
+
+ii. Pick up one of your favorite method above and build the predictive model with PC's. Say you use RandomForest.
+
+```{r}
+# we select 750 principal components to build the model
+pc.train.750 <- pc.train.scores[, c(1:750)]
+pc.train.750 <- data.frame(pc.train.750) %>% mutate(rating = data2.train$rating)
+#dim(pc.train.750)
+```
+```{r}
+set.seed(1)
+fit.rf.ranger.pc <- ranger::ranger(rating~., pc.train.750, num.trees = 100, mtry = 45, importance="impurity")
+fit.rf.ranger.pc$prediction.error
+imp <- importance(fit.rf.ranger.pc)
+imp[order(imp, decreasing = T)][1:20]
+```
+
+iii. What is the testing error? Is this testing error better than that obtained using the original x's? 
+
+**Answer:** The testing error is 0.4288, which is worse than 0.1544 obtain using original inputs.
+
+```{r}
+pc.test <- prcomp(data2.test[, -c(1)], scale=TRUE)
+pc.test.scores <- pc.test$x
+
+```  
+```{r}
+# we select 750 principal components to test
+pc.test.750 <- pc.test.scores[, c(1:750)]
+pc.test.750 <- data.frame(pc.test.750) %>% mutate(rating = data2.test$rating)
+```
+
+```{r}
+predict.rf.pc <- predict(fit.rf.ranger.pc, data=pc.test.750, type="response")  
+class.rf.pc <- data.frame(predict.rf.pc$predictions) 
+
+# majority vote
+class.rf.pc <- class.rf.pc %>% mutate(prediction = ifelse(predict.rf.pc.predictions > .5, "1", "0"))
+mean(pc.test.750$rating != class.rf.pc$prediction)
+```
+
+## 6. Ensemble model
+
+i. Take average of some of the  models built above (also try all of them) and this gives us the fifth model. Report it's testing error. (Do you have more models to be bagged, try it.)
+
+**Answer:** We take the average of the predictions generated by the logistic regression model and the random forest models, and applied majority vote. The ensemble's test error is 0.1264.
+
+```{r}
+ensemble <- data.frame(cbind (predict.glm, predict.rf$predictions))
+ensemble <- ensemble %>% rename(predict.rf = V2)
+ensemble <- ensemble %>% rowwise() %>% 
+    mutate(average =mean(c(predict.glm, predict.rf)))
+```
+
+```{r}
+ensemble <- ensemble %>% mutate(prediction = ifelse(average > .5, "1", "0"))
+mean(data2.test$rating != ensemble$prediction)
+```
+
+## 7. Final model
+
+Which classifier(s) seem to produce the least testing error? Are you surprised? Report the final model and accompany the validation error. Once again this is THE only time you use the validation data set.  For the purpose of prediction, comment on how would you predict a rating if you are given a review (not a tm output) using our final model? 
+
+
+
+
+
+
+
+
+
+
+
