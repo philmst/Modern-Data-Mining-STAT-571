@@ -1,0 +1,103 @@
+---
+title: "nn2"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.height=4, fig.width=6, warning = F)
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(ggplot2, dplyr, keras, purrr, data.table, readr)
+```
+
+## R Markdown
+
+```{r}
+combined <- readr::read_csv("combined.csv")
+```
+```{r}
+head(combined)
+```
+
+```{r}
+train_test_id <- fread("train_test_id.csv")
+validate_id <- fread("validate_id.csv")
+```
+
+
+## Split
+
+```{r}
+train.data <- combined[combined$id %in% train_test_id$id, ]
+validate.data <- combined[combined$id %in% validate_id$id, ]
+```
+
+## Vectorize 
+
+```{r}
+num_words <- 10000
+max_length <- 25
+text_vectorization <- layer_text_vectorization(
+  max_tokens = num_words, 
+  output_sequence_length = max_length, 
+)
+```
+
+```{r}
+text_vectorization %>%adapt(combined$title)
+```
+
+```{r}
+get_vocabulary(text_vectorization)
+```
+
+
+## Create Model
+
+
+```{r}
+input <- layer_input(shape = c(1), dtype = "string")
+
+output <- input %>% 
+  text_vectorization() %>% 
+  layer_embedding(input_dim = num_words + 1, output_dim = 16) %>%
+  layer_global_average_pooling_1d() %>%
+  layer_dense(units = 16, activation = "relu") %>%
+  layer_dropout(0.5) %>% 
+  layer_dense(units = 1, activation = "sigmoid")
+
+model <- keras_model(input, output)
+```
+
+```{r}
+model %>% compile(
+  optimizer = 'adam',
+  loss = 'binary_crossentropy',
+  metrics = list('accuracy')
+)
+```
+
+```{r}
+set.seed(1)
+history <- model %>% fit(
+  train.data$title,
+  as.numeric(train.data$y),
+  epochs = 50,
+  batch_size = 512,
+  validation_split = 0.2,
+  verbose=2
+)
+```
+
+**Note:** 99.46% accuracy on training set after 50 epochs.
+
+```{r}
+plot(history)
+```
+## Evaluate against validation data
+
+**Notes: ** 94.92% accuracy on test set.
+
+```{r}
+results <- model %>% evaluate(validate.data$title, as.numeric(validate.data$y), verbose = 0)
+results
+```
