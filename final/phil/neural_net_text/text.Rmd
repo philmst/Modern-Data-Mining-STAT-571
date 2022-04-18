@@ -1,0 +1,120 @@
+---
+title: "nn2"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.height=4, fig.width=6, warning = F)
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(ggplot2, dplyr, keras, purrr, data.table, readr)
+```
+
+## R Markdown
+
+```{r}
+combined <- readr::read_csv("combined.csv")
+```
+```{r}
+head(combined)
+```
+
+```{r}
+test_df <- fread("text_test.csv")
+train_df <- fread("text_train.csv")
+validate_df <- fread("text_validate.csv")
+```
+
+```{r}
+train_test_df <- rbind(train_df, test_df)
+```
+
+```{r}
+train_test_id <- train_test_df %>% select(id)
+validate_id <- validate_df %>% select(id)
+```
+
+```{r}
+write.csv(train_test_id, "train_test_id.csv", row.names=FALSE)
+write.csv(validate_id, "validate_id.csv", row.names=FALSE)
+```
+
+## Split
+
+```{r}
+train.data <- combined[combined$id %in% train_test_id$id, ]
+validate.data <- combined[combined$id %in% validate_id$id, ]
+```
+
+## Vectorize 
+
+```{r}
+num_words <- 10000
+max_length <- 1000
+text_vectorization <- layer_text_vectorization(
+  max_tokens = num_words, 
+  output_sequence_length = max_length, 
+)
+```
+
+```{r}
+text_vectorization %>%adapt(combined$text)
+```
+
+```{r}
+get_vocabulary(text_vectorization)
+```
+
+```{r}
+text_vectorization(matrix(combined$text[1], ncol = 1))
+```
+
+## Create Model
+
+
+```{r}
+input <- layer_input(shape = c(1), dtype = "string")
+
+output <- input %>% 
+  text_vectorization() %>% 
+  layer_embedding(input_dim = num_words + 1, output_dim = 16) %>%
+  layer_global_average_pooling_1d() %>%
+  layer_dense(units = 16, activation = "relu") %>%
+  layer_dropout(0.5) %>% 
+  layer_dense(units = 1, activation = "sigmoid")
+
+model <- keras_model(input, output)
+```
+
+```{r}
+model %>% compile(
+  optimizer = 'adam',
+  loss = 'binary_crossentropy',
+  metrics = list('accuracy')
+)
+```
+
+```{r}
+set.seed(1)
+history <- model %>% fit(
+  train.data$text,
+  as.numeric(train.data$y),
+  epochs = 25,
+  batch_size = 512,
+  validation_split = 0.2,
+  verbose=2
+)
+```
+
+**Note:** 98.98% accuracy on training set after 25 epochs. Next we evaluate the model using the validation set.
+
+```{r}
+plot(history)
+```
+## Evaluate against validation data
+
+**Notes: ** 97.4% Accuracy on the validate set.
+
+```{r}
+results <- model %>% evaluate(validate.data$text, as.numeric(validate.data$y), verbose = 0)
+results
+```
