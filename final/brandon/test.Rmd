@@ -1,0 +1,140 @@
+---
+title: "TestLasso"
+author: "Brandon Kleinman"
+date: "4/21/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.height=4, fig.width=6, warning = F)
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(ggplot2, dplyr, purrr, data.table, glmnet, tidyverse, tidytext, tm, RColorBrewer, wordcloud)
+```
+
+```{r}
+combined <- readr::read_csv("combined.csv")
+```
+
+```{r}
+test_df <- fread("text_test.csv")
+train_df <- fread("text_train.csv")
+validate_df <- fread("text_validate.csv")
+```
+
+```{r}
+train_test_df <- rbind(train_df, test_df)
+```
+
+```{r}
+train_test_id <- train_test_df %>% select(id)
+validate_id <- validate_df %>% select(id)
+```
+
+```{r}
+train.data <- combined[combined$id %in% train_test_id$id, ]
+validate.data <- combined[combined$id %in% validate_id$id, ]
+```
+ 
+```{r}
+totalData <- rbind(train.data, validate.data)
+totalData <- totalData %>% rename(trueValue = y)
+head(totalData)
+
+```
+
+
+```{r}
+data.text <- totalData$text
+mycorpus1 <- VCorpus(VectorSource(data.text))
+```
+
+```{r}
+# Converts all words to lowercase
+mycorpus_clean <- tm_map(mycorpus1, content_transformer(tolower))
+
+# Removes common English stopwords (e.g. "with", "i")
+mycorpus_clean <- tm_map(mycorpus_clean, removeWords, stopwords("english"))
+
+
+mycorpus_clean <- tm_map(mycorpus_clean, removePunctuation)
+
+# Removes numbers
+mycorpus_clean <- tm_map(mycorpus_clean, removeNumbers)
+
+# Stem words
+mycorpus_clean <- tm_map(mycorpus_clean, stemDocument, lazy = TRUE) 
+```
+
+
+```{r}
+threshold <- .015*length(mycorpus_clean)   
+words.1 <- findFreqTerms(dtm1, lowfreq=threshold) 
+dtm2<- DocumentTermMatrix(mycorpus_clean, control = list(dictionary = words.1))
+dim(dtm2)
+```
+
+```{r}
+fulldata <- data.frame(as.matrix(dtm2), totalData$trueValue, stringsAsFactors = FALSE)
+fulldata <- fulldata %>% rename(trueValue = totalData.trueValue)
+```
+
+```{r}
+set.seed(1) 
+n <- nrow(fulldata)
+train.index <- c(seq(from = 0, to = nrow(train.data)))
+train <- fulldata[train.index,]
+test <- fulldata[-train.index,]
+dim(train)
+```
+
+
+```{r}
+response <- as.numeric(train$totalData.trueValue)
+
+#data2.train$rating
+#X1 <- sparse.model.matrix(rating~., data=data2.train)[, -1]
+options(na.action='na.pass')
+X1 <- sparse.model.matrix(y~., data=train)[, -1]
+options(na.action='na.action')
+
+set.seed(1)
+result.lasso <- cv.glmnet(X1, response, alpha=1, family="binomial")
+plot(result.lasso)
+```
+
+```{r}
+coef.1se <- coef(result.lasso, s="lambda.1se")  
+coef.1se <- coef.1se[which(coef.1se !=0),] 
+lasso.words <- rownames(as.matrix(coef.1se))[-1]
+summary(lasso.words)
+```
+
+```{r}
+sel_cols <- c("rating", lasso.words)
+
+data_sub <- data2 %>% select(all_of(sel_cols))
+result.glm <- glm(rating~., family=binomial, data_sub)
+```
+
+
+```{r}
+# pick up the positive coef's which are positively related to the prob of being a good review
+good.glm <- coef.1se[which(coef.1se > 0)]
+good.glm <- good.glm[-1]  # took intercept out
+names(good.glm)[1:20]  # which words are positively associated with good ratings
+
+good.fre <- sort(good.glm, decreasing = TRUE) # sort the coef's
+round(good.fre, 4)[1:20] # leading 20 positive words, amazing!
+length(good.fre)  # 390 good words
+
+# hist(as.matrix(good.fre), breaks=30, col="red") 
+good.word <- names(good.fre)  # good words with a decreasing order in the coeff's
+```
+
+
+```{r}
+cor.special <- brewer.pal(8,"Dark2")  # set up a pretty color scheme
+wordcloud(good.word[1:300], good.fre[1:300],  # make a word cloud
+          colors=cor.special, ordered.colors=F)
+
+```
