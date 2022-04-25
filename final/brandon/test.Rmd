@@ -85,16 +85,19 @@ train.index <- c(seq(from = 0, to = nrow(train.data)))
 train <- fulldata[train.index,]
 test <- fulldata[-train.index,]
 dim(train)
+#dim(test) train$totalData.trueValue train[, 2090:2093] fulldata[, 2090:2093]
 ```
 
 
 ```{r}
-response <- as.numeric(train$totalData.trueValue)
+response <- as.numeric(train$trueValue)
 
+#
 #data2.train$rating
 #X1 <- sparse.model.matrix(rating~., data=data2.train)[, -1]
+#X1$y
 options(na.action='na.pass')
-X1 <- sparse.model.matrix(y~., data=train)[, -1]
+X1 <- sparse.model.matrix(trueValue~., data=train)[, -1]
 options(na.action='na.action')
 
 set.seed(1)
@@ -110,10 +113,11 @@ summary(lasso.words)
 ```
 
 ```{r}
-sel_cols <- c("rating", lasso.words)
+options(na.action='na.pass')
+sel_cols <- c("trueValue", lasso.words)
 
-data_sub <- data2 %>% select(all_of(sel_cols))
-result.glm <- glm(rating~., family=binomial, data_sub)
+data_sub <- train %>% select(all_of(sel_cols))
+result.glm <- glm(trueValue~., family=binomial, data_sub)
 ```
 
 
@@ -134,7 +138,21 @@ good.word <- names(good.fre)  # good words with a decreasing order in the coeff'
 
 ```{r}
 cor.special <- brewer.pal(8,"Dark2")  # set up a pretty color scheme
-wordcloud(good.word[1:300], good.fre[1:300],  # make a word cloud
-          colors=cor.special, ordered.colors=F)
+wordcloud(good.word[1:100], good.fre[1:100],  # make a word cloud
+          colors=cor.special, ordered.colors=F,min.freq = 100)
 
+```
+
+**Negative Word Cloud**
+
+```{r}
+bad.glm <- coef.1se[which(coef.1se < 0)]
+cor.special <- brewer.pal(6,"Dark2")
+bad.fre <- sort(-bad.glm, decreasing = TRUE)
+```
+
+```{r}
+bad.word <- names(bad.fre)
+wordcloud(bad.word[2:100], bad.fre[2:100],color=cor.special, ordered.colors=F, min.freq = 100)
+#round(bad.fre, 4)[1:20]
 ```

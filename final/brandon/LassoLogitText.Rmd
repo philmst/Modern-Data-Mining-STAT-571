@@ -105,10 +105,10 @@ summary(lasso.words)
 ```
 
 ```{r}
-sel_cols <- c("rating", lasso.words)
+sel_cols <- c("trueValue", lasso.words)
 
-data_sub <- data2 %>% select(all_of(sel_cols))
-result.glm <- glm(rating~., family=binomial, data_sub)
+data_sub <- train %>% select(all_of(sel_cols))
+result.glm <- glm(trueValue~., family=binomial, data_sub)
 ```
 
 
