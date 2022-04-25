@@ -59,6 +59,9 @@ mycorpus_clean <- tm_map(mycorpus_clean, removeNumbers)
 mycorpus_clean <- tm_map(mycorpus_clean, stemDocument, lazy = TRUE) 
 ```
 
+```{r}
+dtm1 <- DocumentTermMatrix(mycorpus_clean)
+```
 
 ```{r}
 threshold <- .015*length(mycorpus_clean)   
@@ -168,4 +171,120 @@ class.glm <- ifelse(predict.glm > .5, "1", "0")
 
 testerror.glm <- mean(test$trueValue != class.glm)
 testerror.glm
+```
+
+** titles **
+```{r}
+data.titles <- totalData$title
+mycorpus2 <- VCorpus(VectorSource(data.titles))
+```
+
+```{r}
+# Converts all words to lowercase
+mycorpus_clean2 <- tm_map(mycorpus2, content_transformer(tolower))
+# Removes common English stopwords (e.g. "with", "i")
+mycorpus_clean2 <- tm_map(mycorpus_clean2, removeWords, stopwords("english"))
+mycorpus_clean2 <- tm_map(mycorpus_clean2, removePunctuation)
+# Removes numbers
+mycorpus_clean2 <- tm_map(mycorpus_clean2, removeNumbers)
+# Stem words
+mycorpus_clean2 <- tm_map(mycorpus_clean2, stemDocument, lazy = TRUE) 
+```
+
+```{r}
+dtm3 <- DocumentTermMatrix(mycorpus_clean2)
+```
+
+```{r}
+threshold2 <- .015*length(mycorpus_clean2)   
+words.2 <- findFreqTerms(dtm3, lowfreq=threshold2) 
+dtm4<- DocumentTermMatrix(mycorpus_clean2, control = list(dictionary = words.2))
+dim(dtm4)
+```
+
+```{r}
+fulldata2 <- data.frame(as.matrix(dtm4), totalData$trueValue, stringsAsFactors = FALSE)
+fulldata2 <- fulldata2 %>% rename(trueValue = totalData.trueValue)
+```
+
+```{r}
+set.seed(1) 
+n <- nrow(fulldata2)
+train.index <- c(seq(from = 0, to = nrow(train.data)))
+train2 <- fulldata2[train.index,]
+test2 <- fulldata2[-train.index,]
+dim(train2)
+#dim(test) train$totalData.trueValue train[, 2090:2093] fulldata[, 2090:2093]
+```
+
+```{r}
+response2 <- as.numeric(train2$trueValue)
+#
+#data2.train$rating
+#X1 <- sparse.model.matrix(rating~., data=data2.train)[, -1]
+#X1$y
+options(na.action='na.pass')
+X1_2 <- sparse.model.matrix(trueValue~., data=train2)[, -1]
+options(na.action='na.action')
+set.seed(1)
+result.lasso2 <- cv.glmnet(X1_2, response2, alpha=1, family="binomial")
+plot(result.lasso2)
+```
+
+```{r}
+coef.1se_2 <- coef(result.lasso2, s="lambda.1se")  
+coef.1se_2 <- coef.1se_2[which(coef.1se_2 !=0),] 
+lasso.words2 <- rownames(as.matrix(coef.1se_2))[-1]
+summary(lasso.words2)
+```
+
+```{r}
+# pick up the positive coef's which are positively related to the prob of being a good review
+good.glm2 <- coef.1se_2[which(coef.1se_2 > 0)]
+good.glm2 <- good.glm2[-1]  # took intercept out
+names(good.glm2)[1:20]  # which words are positively associated with good ratings
+good.fre2 <- sort(good.glm2, decreasing = TRUE) # sort the coef's
+round(good.fre2, 4)[1:20] # leading 20 positive words, amazing!
+length(good.fre2)  # 390 good words
+# hist(as.matrix(good.fre), breaks=30, col="red") 
+good.word2 <- names(good.fre2)  # good words with a decreasing order in the coeff's
+```
+
+```{r}
+cor.special2 <- brewer.pal(8,"Dark2")  # set up a pretty color scheme
+wordcloud(good.word2[1:20], good.fre2[1:20],  # make a word cloud
+          colors=cor.special2, ordered.colors=F)
+```
+**negative word cloud for titles**
+```{r}
+bad.glm2 <- coef.1se_2[which(coef.1se_2 < 0)]
+cor.special2 <- brewer.pal(6,"Dark2")
+bad.fre2 <- sort(-bad.glm2, decreasing = TRUE)
+```
+
+```{r}
+bad.word2 <- names(bad.fre2)
+wordcloud(bad.word2[1:10], bad.fre2[1:20],color=cor.special2, ordered.colors=F)
+#round(bad.fre, 4)[1:20]
+```
+
+
+** Logistic Regression **
+```{r}
+options(na.action='na.pass')
+sel_cols2 <- c("trueValue", lasso.words2)
+data_sub2 <- train2 %>% select(all_of(sel_cols2))
+result.glm2 <- glm(trueValue~., family=binomial, data_sub2)
+
+```
+
+
+```{r}
+predict.glm2 <- predict(result.glm2, test2, type = "response")
+
+# Majority vote
+class.glm2 <- ifelse(predict.glm2 > .5, "1", "0")
+
+testerror.glm2 <- mean(test2$trueValue != class.glm2)
+testerror.glm2
 ```
