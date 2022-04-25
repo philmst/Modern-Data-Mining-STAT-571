@@ -1,0 +1,116 @@
+---
+title: "News"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.height=4, fig.width=6, warning = F)
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(randomForest, tree, ISLR, rpart, rattle, pROC, partykit, ggplot2, glmnet, leaps, dplyr, keras, neuralnet, imager, ranger, tidyverse, tidytext, lubridate, car, tm,  RColorBrewer, wordcloud, wordcloud2, data.table)
+```
+
+# 3. Exploratory Data Analysis
+
+**Note:** Each of us can do a little bit on EDA here.
+
+
+
+
+## Brandon
+
+# 4. Model Building and Tuning
+
+**Note:** Each of us can pick a model and train both the "title" model and "text" model. Use train data to train and test data to tune hyperparameters.
+
+## Phil (Neural net)
+
+## Ben - Random Forest
+
+**This chunk is to be deleted during consolidation**
+```{r}
+#read in data
+setwd("~/Library/Mobile Documents/com~apple~CloudDocs/★Wharton/Spring 2022/STAT701 Modern Data Mining/Final Projects/Working Folder/")
+title_train <- fread("title_train.csv")
+text_train <- fread("text_train.csv")
+title_test <- fread("title_test.csv")
+text_test <- fread("text_test.csv")
+title_validate <- fread("title_validate.csv")
+text_validate <- fread("text_validate.csv")
+```
+
+```{r}
+#turn all NAs in dtm into 0
+title_train[is.na(title_train)] <- 0
+title_test[is.na(title_test)] <- 0
+title_validate[is.na(title_validate)] <- 0
+text_train[is.na(text_train)] <- 0
+text_test[is.na(text_test)] <- 0
+text_validate[is.na(text_validate)] <- 0
+
+#turn all data into ASCII
+
+colnames(text_train) <- iconv(names(text_train), to = "ASCII", sub = "")
+
+```
+
+##Text
+Create initial model using training data
+
+```{r}
+set.seed(1)
+sum(is.na(text_train))
+sum(is.na(colnames(text_train)))
+dim(text_train)
+fit.rf.1 <- randomForest(y ~ ., data = text_train, mtry=542, ntree=100)
+
+```
+
+
+Fine tune `ntree`
+```{r}
+plot(fit.rf.1$mse, xlab="number of trees", col="blue",
+     ylab="Out-of-bag (OOB) MSE",
+     pch=16) 
+title(main = "OOB testing errors as a function of number of trees")
+```
+
+Fine tune `mtry`
+
+- We fix `ntree` at XXX, and look at the testing errors for different values of `mtry`
+```{r}
+rf.error.p <- 1:600  # set up a vector of length to be the same as p
+for (p in 1:600)  # repeat the following code inside { } 600 times
+{
+  fit.rf <- randomForest(y~., text_train, mtry=p, ntree=XXX)
+  #plot(fit.rf, col= p, lwd = 3)
+  rf.error.p[p] <- fit.rf$mse[250]  # collecting oob mse based on 250 trees
+}
+rf.error.p   # oob mse returned: should be a vector of 19
+
+plot(1:600, rf.error.p, pch=16,
+     main = "Testing errors of mtry with XXX trees",
+     xlab="mtry",
+     ylab="OOB mse of mtry")
+lines(1:600, rf.error.p)
+```
+
+
+Calculate the testing error & compare it to OBB error
+
+
+## Brandon (Pick a model, rf, lasso, logistic, etc)
+
+# 5. Model Evaluation
+
+**Note:** Each of us evaluate the tuned models' testing error using the validate set for both "title" and "text" models. The idea is to average the probability estimations of the two and use majority vote (title and test models have 50-50 weight).
+
+We average the probability estimations (p) from both title and text model and classify "1" or "0" if p > .50. We may check to see first how good each model is before
+
+## Ben (Evaluate a model, rf, lasso, logistic, etc)
+
+
+
+
+# 6. Model Selection and Conclusion
+
+**Note:** Here we pick which model/models we think is best in predicting whether an article is real or fake. We may not need to include title model if indeed it is not predictive across the board. Or we may even be surprised that title may be more predictive than the article text. Regardless here we summarize the finding and select the final model.
