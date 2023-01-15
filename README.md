@@ -1,4 +1,2 @@
 # STAT-571
-Repo for homeworks
-
-We'll probably make a new directory for each hw.
+Repository for group homeworks for STAT 571, modern data mining.
